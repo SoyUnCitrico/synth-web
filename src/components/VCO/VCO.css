@@ -1,0 +1,24 @@
+.waveform-display {
+    background-color: #222;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-top: 0.5rem;
+  }
+  
+  .waveform-svg {
+    width: 100%;
+    height: 50px;
+    stroke: #ff7700;
+  }
+  
+  .waveform-svg.disabled {
+    stroke: #666;
+  }
+  
+  .primary-vco .waveform-svg {
+    stroke: #ff7700;
+  }
+  
+  .secondary-vco .waveform-svg {
+    stroke: #ffaa00;
+  }

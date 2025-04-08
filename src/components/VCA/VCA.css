@@ -1,0 +1,23 @@
+  /* Estilos específicos para VCA */
+  .volume-display {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  
+  .volume-meter {
+    width: 30px;
+    height: 100px;
+    background-color: #222;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .volume-level {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background-color: #00ff88;
+    transition: height 0.2s ease;
+  }
