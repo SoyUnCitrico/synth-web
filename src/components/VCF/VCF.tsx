@@ -61,11 +61,12 @@ export const VCF: React.FC<VCFProps> = ({
       switch (filterType) {
         case 'lowpass':
           // Curva simple para lowpass
-          y = availableHeight * (1 - Math.min(1, Math.pow(normalizedX * 4, 2 / resonance)));
+          y = availableHeight * (1 - Math.min(1, Math.pow(normalizedX * 1, 8 / resonance)));
+          // y = Math.log10(y) + 25;
           break;
         case 'highpass':
           // Invertir la curva para highpass
-          y = availableHeight * Math.min(1, Math.pow(normalizedX * 2, resonance / 2));
+          y = availableHeight * Math.min(1, Math.pow(normalizedX * 1, resonance / 2));
           break;
         case 'bandpass':
           // Forma de campana para bandpass
@@ -93,7 +94,7 @@ export const VCF: React.FC<VCFProps> = ({
     
     // Punto final
     points += `${width - margin},${height - margin}`;
-    
+    // console.log(points)
     return points;
   };
 
@@ -156,6 +157,12 @@ export const VCF: React.FC<VCFProps> = ({
         
         <div className="control-group">
           <label htmlFor="filter-freq">Frecuencia: {frequency.toFixed(0)} Hz</label>
+          <input 
+              type="number"           
+              value={frequency}
+              onChange={handleFrequencyChange}
+              className="control-input"
+            />
           <input 
             type="range" 
             id="filter-freq" 

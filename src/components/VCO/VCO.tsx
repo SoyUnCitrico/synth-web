@@ -12,9 +12,9 @@ interface VCOProps {
   setDetune?: (detune: number) => void;
   enabled?: boolean;
   setEnabled?: (enabled: boolean) => void;
+  oscRef?: any
 }
-
-export const VCO: React.FC<VCOProps> = ({ 
+const VCO: React.FC<VCOProps> = ({ 
   oscType, 
   setOscType, 
   frequency, 
@@ -23,7 +23,8 @@ export const VCO: React.FC<VCOProps> = ({
   detune = 0,
   setDetune,
   enabled = true,
-  setEnabled
+  setEnabled,
+  oscRef
 }) => {
   // Tipos de osciladores disponibles
   const oscillatorTypes: Tone.ToneOscillatorType[] = ['sine', 'square', 'sawtooth', 'triangle'];
@@ -31,6 +32,7 @@ export const VCO: React.FC<VCOProps> = ({
   // Manejador para cambiar el tipo de oscilador
   const handleOscTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setOscType(e.target.value as Tone.ToneOscillatorType);
+    if(oscRef) oscRef.current.type = e.target.value as Tone.ToneOscillatorType;
   };
   
   // Manejador para cambiar la frecuencia
@@ -93,6 +95,12 @@ export const VCO: React.FC<VCOProps> = ({
           <div className="control-group">
             <label htmlFor="frequency">Frecuencia: {frequency.toFixed(0)} Hz</label>
             <input 
+              type="number"           
+              value={frequency}
+              onChange={handleFrequencyChange}
+              className="control-input"
+            />
+            <input 
               type="range" 
               id="frequency" 
               min="20" 
@@ -108,6 +116,13 @@ export const VCO: React.FC<VCOProps> = ({
         {isSecondary && setDetune && (
           <div className="control-group">
             <label htmlFor="detune">Detune: {detune} cents</label>
+            <input 
+              type="number"           
+              value={detune}
+              onChange={handleDetuneChange}
+              className="control-input"
+              disabled={!enabled}
+            />
             <input 
               type="range" 
               id="detune" 
@@ -129,7 +144,6 @@ export const VCO: React.FC<VCOProps> = ({
                 <path 
                   d="M0,25 Q25,0 50,25 T100,25" 
                   fill="none" 
-                  stroke="currentColor" 
                   strokeWidth="2"
                 />
               )}
@@ -137,7 +151,6 @@ export const VCO: React.FC<VCOProps> = ({
                 <path 
                   d="M0,45 L0,5 L50,5 L50,45 L100,45 L100,5" 
                   fill="none" 
-                  stroke="currentColor" 
                   strokeWidth="2"
                 />
               )}
@@ -145,15 +158,13 @@ export const VCO: React.FC<VCOProps> = ({
                 <path 
                   d="M0,45 L50,5 L50,45 L100,5" 
                   fill="none" 
-                  stroke="currentColor" 
                   strokeWidth="2"
                 />
               )}
               {oscType === 'triangle' && (
                 <path 
-                  d="M0,45 L25,5 L75,45 L100,5" 
+                  d="M0,25 L25,0 L75,50 L100,25" 
                   fill="none" 
-                  stroke="currentColor" 
                   strokeWidth="2"
                 />
               )}
@@ -164,3 +175,5 @@ export const VCO: React.FC<VCOProps> = ({
     </div>
   );
 };
+
+export default VCO;
