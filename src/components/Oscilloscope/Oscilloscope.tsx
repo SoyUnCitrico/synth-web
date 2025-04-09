@@ -87,8 +87,6 @@ const Oscilloscope : any = ({analyzerRef, containerRef} : OscilloscopePros) => {
 
   useEffect(() => {
     if(!!oscRef) {
-        // console.log("REF: ", oscRef)
-        // console.log("REFCURRENT: ", oscRef.current.offsetWidth)
         setDimensions({
             width: oscRef.current.offsetWidth -50,
             height: 200

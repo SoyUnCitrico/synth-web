@@ -13,7 +13,7 @@ export const VCA: React.FC<VCAProps> = ({ volume, setVolume }) => {
   };
 
   // Convertir dB a un valor normalizado para visualización
-  const normalizedVolume = (volume + 30) / 40; // -30dB a +10dB normalizado de 0 a 1
+  const normalizedVolume = (volume + 30) / 32; // -30dB a +10dB normalizado de 0 a 1
   
   return (
     <div className="module vca-module">
@@ -27,7 +27,7 @@ export const VCA: React.FC<VCAProps> = ({ volume, setVolume }) => {
             type="range" 
             id="volume" 
             min="-30" 
-            max="10" 
+            max="2" 
             step="0.1" 
             value={volume}
             onChange={handleVolumeChange}

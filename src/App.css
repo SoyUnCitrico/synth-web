@@ -33,7 +33,7 @@
 
 .module-big {
   display: grid;
-  margin: auto;
+  margin: 0.5rem auto;
   padding:auto 1rem;
   width: 96%;
   max-width: 1200px;
@@ -53,6 +53,9 @@
   padding-bottom: 0.5rem;
 }
 
+/* .header-big {
+  margin-bottom: 1rem;
+} */
 .module-header h2 {
   margin: 0;
   font-size: 1.5rem;

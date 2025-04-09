@@ -24,7 +24,7 @@ const VCO: React.FC<VCOProps> = ({
   setDetune,
   enabled = true,
   setEnabled,
-  oscRef
+  // oscRef
 }) => {
   // Tipos de osciladores disponibles
   const oscillatorTypes: Tone.ToneOscillatorType[] = ['sine', 'square', 'sawtooth', 'triangle'];
@@ -32,7 +32,8 @@ const VCO: React.FC<VCOProps> = ({
   // Manejador para cambiar el tipo de oscilador
   const handleOscTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setOscType(e.target.value as Tone.ToneOscillatorType);
-    if(oscRef) oscRef.current.type = e.target.value as Tone.ToneOscillatorType;
+    // console.log(oscRef)
+    // if(oscRef) oscRef.current.type = e.target.value as Tone.ToneOscillatorType;
   };
   
   // Manejador para cambiar la frecuencia

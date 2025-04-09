@@ -6,6 +6,7 @@ import { ADSR } from './components/ADSR/ADSR';
 import { VCA } from './components/VCA/VCA';
 import './App.css';
 import Oscilloscope from './components/Oscilloscope/Oscilloscope';
+import SpectrumAnalyzer from './components/Spectrum/Spectrum';
 
 const keyMap : Record<string, string> = {
   'z': 'C',
@@ -38,11 +39,12 @@ const AnalogSynthEmulator: React.FC = () => {
   // Estado para el amplificador y el envelope
   const [envelope, setEnvelope] = useState<Tone.AmplitudeEnvelope | null>(null);
   const [gain, setGain] = useState<Tone.Gain | null>(null);
+  const [analyser, setAnalyser] = useState<Tone.Analyser | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   
   // Parámetros de los osciladores
-  const [oscType, setOscType] = useState<Tone.ToneOscillatorType>('sine');
+  const [oscType, setOscType] = useState<Tone.ToneOscillatorType>('sawtooth');
   const [frequency, setFrequency] = useState<number>(440);
   
   // Parámetros para el segundo oscilador
@@ -52,7 +54,7 @@ const AnalogSynthEmulator: React.FC = () => {
   
   // Parámetros del filtro
   const [filterType, setFilterType] = useState<BiquadFilterType>('lowpass');
-  const [filterFreq, setFilterFreq] = useState<number>(2000);
+  const [filterFreq, setFilterFreq] = useState<number>(20000);
   const [filterRes, setFilterRes] = useState<number>(1);
   
    
@@ -69,38 +71,27 @@ const AnalogSynthEmulator: React.FC = () => {
   const [activeNotes, setActiveNotes] = useState<any>({});
   const [octave, setOctave] = useState(4);
 
+  const oscRef = useRef<any>(null);  
+  
   // Referencias a los nodos de Tone.js
-  const oscRef = useRef<any>(null);
   const oscillatorRef = useRef<any>(null);
   const oscillator2Ref = useRef<any>(null);
+  const vcfRef = useRef<any>(null);
+  const gainRef = useRef<any>(null);
   const envelopeRef = useRef<any>(null);
-  const analyzerRef = useRef<any>(null);
-  // Inicializar Tone.js
-  useEffect(() => {
-    // Crear la estructura del sintetizador
-    const env = new Tone.AmplitudeEnvelope({
-      attack,
-      decay,
-      sustain,
-      release
-    });
-    
-    // Crear el filtro
-    const vcf = new Tone.Filter({
-        type: filterType,
-        frequency: filterFreq,
-        Q: filterRes
-    });
-    
-    const gainNode = new Tone.Gain(Tone.dbToGain(volume));
-    
-    // Crear los osciladoress
-    const osc1 = new Tone.Oscillator(
-      frequency,
-      oscType
-    );
+  const analyserRef = useRef<any>(null);
+  const spectrumRef = useRef<any>(null);
 
+
+  useEffect(() => {
+        // Crear los osciladoress
+    // @ts-ignore
+    const osc1 = new Tone.Oscillator({
+      frequency: frequency,
+      type: oscType
+    });
     oscillatorRef.current = osc1;
+    
     // @ts-ignore
     const osc2 = new Tone.Oscillator({
       type: osc2Type,
@@ -108,26 +99,60 @@ const AnalogSynthEmulator: React.FC = () => {
       detune: detune
     });
     oscillator2Ref.current = osc2;
-    const analyzer = new Tone.Analyser({
-      type: "waveform",
-      size: 1024
+
+    // Crear la estructura del sintetizador
+    const env = new Tone.AmplitudeEnvelope({
+      attack,
+      decay,
+      sustain,
+      release
     });
-    analyzerRef.current = analyzer;
+    envelopeRef.current = env;
+    // Crear el filtro
+    const vcf = new Tone.Filter({
+        type: filterType,
+        frequency: filterFreq,
+        Q: filterRes
+    });
+    vcfRef.current = vcf;
+
+    const gainNode = new Tone.Gain(Tone.dbToGain(volume));
+    gainRef.current = gainNode;
+
+    const analyserNode = new Tone.Analyser({
+      type: "waveform",
+      size: 512,
+      smoothing : 0.8
+    });
+    analyserRef.current = analyserNode;
     
-    // Conectar la señal
-    vcf.connect(env);
-    env.connect(gainNode);
-    gainNode.connect(analyzer);
-    gainNode.toDestination();
+    // Crear un analizador para FFT (espectro)
+    const fftAnalyzer = new Tone.Analyser({
+      type: "fft",
+      size: 512,
+      smoothing: 0.8
+    });
+    spectrumRef.current = fftAnalyzer;
     
+    // Dividir la señal para ambos analizadores
+    const splitter = new Tone.Split();
+    splitter.connect(analyserNode);
+    splitter.connect(fftAnalyzer);
+
+    //Conexion
     // Solo conectamos el oscilador principal por defecto
     osc1.connect(vcf);
+    vcf.connect(env);
+    env.connect(gainNode);
+    gainNode.connect(splitter);
+    splitter.toDestination();
     
     setMainOsc(osc1);
     setSecondOsc(osc2);
     setFilter(vcf);
     setEnvelope(env);
     setGain(gainNode);
+    setAnalyser(analyserNode)
     
     return () => {
       osc1.dispose();
@@ -135,11 +160,11 @@ const AnalogSynthEmulator: React.FC = () => {
       vcf.dispose();
       env.dispose();
       gainNode.dispose();
-      if (analyzer) {
-        analyzer.dispose();
-      }
+      analyserNode.dispose();
+      splitter.dispose();
+      
     };
-  }, [oscType, osc2Type, analyzerRef, filterType, attack, decay, sustain, release, volume]);
+  }, [oscType, osc2Type, detune, filterType, attack, decay, sustain, release, volume]);
   
   // Efecto para manejar el segundo oscilador
   useEffect(() => {
@@ -153,29 +178,31 @@ const AnalogSynthEmulator: React.FC = () => {
     }
   }, [secondOsc, filter, osc2Enabled]);
   
-// Efectos para actualizar los parámetros de los componentes
-  
+
   // Actualizar parámetros del oscilador 1
   useEffect(() => {
     if (mainOsc) {
-      mainOsc.type = oscType;
-      mainOsc.frequency.value = frequency;
-      // oscillatorRef.current.type = oscType;
-      // oscillatorRef.current.frequency = frequency;
-      // mainOsc.frequency.value = "C6";
+      // mainOsc.type = oscType;
+      // mainOsc.frequency.value = frequency;
+      oscillatorRef.current.type = oscType;
+      oscillatorRef.current.frequency.value = frequency;
+    
     }
+      
   }, [mainOsc, oscType, frequency]);
   
   // Actualizar parámetros del oscilador 2
   useEffect(() => {
     if (secondOsc) {
-      secondOsc.type = osc2Type;
-      secondOsc.frequency.value = frequency;
-      secondOsc.detune.value = detune;
-      // oscillator2Ref.current.type = osc2Type;
+      // secondOsc.type = osc2Type;
+      // secondOsc.frequency.value = frequency;
+      // secondOsc.detune.value = detune;
+      oscillator2Ref.current.type = osc2Type;
+      oscillator2Ref.current.frequency.value = frequency;
+      oscillator2Ref.current.detune.value = detune;
     }
   }, [secondOsc, osc2Type, frequency, detune]);
-  
+
   // Actualizar parámetros del filtro
   useEffect(() => {
     if (filter) {
@@ -187,19 +214,23 @@ const AnalogSynthEmulator: React.FC = () => {
   
   // Actualizar parámetros del envelope
   useEffect(() => {
-    if (envelopeRef.current) {
-      envelopeRef.current.attack = attack;
-      envelopeRef.current.decay = decay;
-      envelopeRef.current.sustain = sustain;
-      envelopeRef.current.release = release;
+    if (envelope) {
+      envelope.attack = attack;
+      envelope.decay = decay;
+      envelope.sustain = sustain;
+      envelope.release = release;
     }
-    envelopeRef.current = envelope;
+    
   }, [envelope, attack, decay, sustain, release]);
   
   // Actualizar parámetros de ganancia
   useEffect(() => {
     if (gain) {
+      // gain.disconnect();
+      // envelope?.connect(gain);
+      // analyser?.connect(gain)
       gain.gain.value = Tone.dbToGain(volume);
+      // gain.toDestination();
     }
   }, [gain, volume]);
 
@@ -215,6 +246,7 @@ const AnalogSynthEmulator: React.FC = () => {
       if (secondOsc.state !== 'started' && osc2Enabled) secondOsc.start();
       
       envelope.triggerAttack();
+      // envelopeRef.current.triggerAttack();
       setIsPlaying(true);
     }
   };
@@ -223,6 +255,7 @@ const AnalogSynthEmulator: React.FC = () => {
   const stopNote = () => {
     if (envelope && isPlaying) {
       envelope.triggerRelease();
+      // envelopeRef.current.triggerRelease();
       setIsPlaying(false);
     }
   };
@@ -239,7 +272,7 @@ const AnalogSynthEmulator: React.FC = () => {
     const handleKeyDown : any = (e : React.KeyboardEvent<any>) => {
       if (e.repeat) return;
       const key = e.key.toLowerCase();
-      console.log(key)
+
       // Cambiar octava
       if (key === 'q' && octave > 1) {
         setOctave(octave - 1);
@@ -254,20 +287,25 @@ const AnalogSynthEmulator: React.FC = () => {
       if (keyMap[key] && !activeNotes[key]) {
         // Determinar la octava adecuada (las últimas teclas están en octava superior)
         const noteOctave = [',', 'l', '.', 'ñ', '-'].includes(key) ? octave + 1 : octave;
-        const note = `${keyMap[key]}${noteOctave}`;
-        
-        // Reproducir la nota
-        // if(envelope) envelope.triggerAttack();
+        const note = `${keyMap[key]}${noteOctave}`;        
 
         // Convertir nombre de nota a frecuencia y configurar el oscilador
-        if (oscillatorRef.current) {
+        if (oscillatorRef) {
           oscillatorRef.current.frequency.value = Tone.Frequency(note);
         }
         
         // Activar la envolvente
-        if (envelopeRef.current) {
+        if (envelopeRef) {          
           envelopeRef.current.triggerAttack();
         }
+
+        // if(mainOsc) {
+        //   mainOsc.frequency.value = Tone.Frequency(note)
+        // }
+                
+        // if(envelope) {
+        //   envelope.triggerAttack();
+        // }
         
         // Actualizar el estado de teclas activas
         setActiveNotes((prev : any) => ({ ...prev, [key]: note }));
@@ -309,9 +347,16 @@ return (
       <div className="synth-modules" ref={oscRef}>
 
         <Oscilloscope 
-          analyzerRef={analyzerRef}
+          analyzerRef={analyserRef}
           containerRef={oscRef}
+          key={`${oscType},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}
         />
+
+        {/* <SpectrumAnalyzer
+          key={`2${oscType},${osc2Enabled},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}
+          fftAnalyzerRef={spectrumRef}
+          specRef={oscRef}
+        /> */}
         <VCO
           oscType={oscType} 
           setOscType={setOscType} 
