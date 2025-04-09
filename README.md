@@ -6,7 +6,7 @@ Emulador de sintetizador analogo con React + Tone.js + Vite,se uso Typescript
 Para correrlo en local ejecuta
 
 ``` bash
-git clone
+git clone https://github.com/SoyUnCitrico/synth-web.git
 cd synth-web
 npm install
 npm run dev
