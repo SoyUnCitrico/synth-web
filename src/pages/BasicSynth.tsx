@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as Tone from 'tone';
-import VCO from './components/VCO/VCO';
-import { VCF } from './components/VCF/VCF';
-import { ADSR } from './components/ADSR/ADSR';
-import { VCA } from './components/VCA/VCA';
-import './App.css';
-import Oscilloscope from './components/Oscilloscope/Oscilloscope';
-import SpectrumAnalyzer from './components/Spectrum/Spectrum';
+import VCO from '../components/VCO/VCO';
+import { VCF } from '../components/VCF/VCF';
+import { ADSR } from '../components/ADSR/ADSR';
+import { VCA } from '../components/VCA/VCA';
+import '../App.css';
+// import Oscilloscope from './components/Oscilloscope/Oscilloscope';
+// import SpectrumAnalyzer from './components/Spectrum/Spectrum';
 
 const keyMap : Record<string, string> = {
   'z': 'C',
@@ -28,7 +28,7 @@ const keyMap : Record<string, string> = {
   '-': 'E',
 };
 
-const AnalogSynthEmulator: React.FC = () => {
+const BasicSynth: React.FC = () => {
   // Estado para los dos osciladores
   const [mainOsc, setMainOsc] = useState<Tone.Oscillator | null>(null);
   const [secondOsc, setSecondOsc] = useState<Tone.Oscillator | null>(null);
@@ -68,31 +68,31 @@ const AnalogSynthEmulator: React.FC = () => {
   const [volume, setVolume] = useState<number>(-6);
 
   // Manejo del teclado
-  const [activeNotes, setActiveNotes] = useState<any>({});
+  const [activeNotes, setActiveNotes] = useState<Record<string, string>>({});
   const [octave, setOctave] = useState(4);
 
-  const oscRef = useRef<any>(null);  
+  const oscRef = useRef<HTMLDivElement | null>(null);  
   
   // Referencias a los nodos de Tone.js
-  const oscillatorRef = useRef<any>(null);
-  const oscillator2Ref = useRef<any>(null);
-  const vcfRef = useRef<any>(null);
-  const gainRef = useRef<any>(null);
-  const envelopeRef = useRef<any>(null);
-  const analyserRef = useRef<any>(null);
-  const spectrumRef = useRef<any>(null);
+  const oscillatorRef = useRef<Tone.Oscillator | null>(null);
+  const oscillator2Ref = useRef<Tone.Oscillator | null>(null);
+  const vcfRef = useRef<Tone.Filter | null>(null);
+  const gainRef = useRef<Tone.Gain | null>(null);
+  const envelopeRef = useRef<Tone.AmplitudeEnvelope | null>(null);
+  const analyserRef = useRef<Tone.Analyser | null>(null);
+  const spectrumRef = useRef<Tone.Analyser | null>(null);
 
 
   useEffect(() => {
         // Crear los osciladoress
-    // @ts-ignore
-    const osc1 = new Tone.Oscillator({
-      frequency: frequency,
-      type: oscType
-    });
+    
+    const osc1 = new Tone.Oscillator(
+      frequency,
+      oscType
+    );
     oscillatorRef.current = osc1;
     
-    // @ts-ignore
+    // @ts-expect-error Se crea un nuevo objeto de opciones para Tone Oscillator que no esta especificado en los tipos pero puede usarse
     const osc2 = new Tone.Oscillator({
       type: osc2Type,
       frequency: frequency,
@@ -164,7 +164,7 @@ const AnalogSynthEmulator: React.FC = () => {
       splitter.dispose();
       
     };
-  }, [oscType, osc2Type, detune, filterType, attack, decay, sustain, release, volume]);
+  }, [oscType, osc2Type, detune, filterType, filterFreq, filterRes, frequency, attack, decay, sustain, release, volume]);
   
   // Efecto para manejar el segundo oscilador
   useEffect(() => {
@@ -181,15 +181,15 @@ const AnalogSynthEmulator: React.FC = () => {
 
   // Actualizar parámetros del oscilador 1
   useEffect(() => {
-    if (mainOsc) {
+    if (mainOsc && analyser) {
       // mainOsc.type = oscType;
-      // mainOsc.frequency.value = frequency;
-      oscillatorRef.current.type = oscType;
-      oscillatorRef.current.frequency.value = frequency;
+      // mainOsc.frequency.value = frequency; 
+      if(oscillatorRef.current) oscillatorRef.current.type = oscType;
+      if(oscillatorRef.current) oscillatorRef.current.frequency.value = frequency;
     
     }
       
-  }, [mainOsc, oscType, frequency]);
+  }, [mainOsc, oscType, frequency, analyser]);
   
   // Actualizar parámetros del oscilador 2
   useEffect(() => {
@@ -197,9 +197,11 @@ const AnalogSynthEmulator: React.FC = () => {
       // secondOsc.type = osc2Type;
       // secondOsc.frequency.value = frequency;
       // secondOsc.detune.value = detune;
-      oscillator2Ref.current.type = osc2Type;
-      oscillator2Ref.current.frequency.value = frequency;
-      oscillator2Ref.current.detune.value = detune;
+      if(oscillator2Ref.current) {        
+        oscillator2Ref.current.type = osc2Type;
+        oscillator2Ref.current.frequency.value = frequency;
+        oscillator2Ref.current.detune.value = detune;
+      }
     }
   }, [secondOsc, osc2Type, frequency, detune]);
 
@@ -269,9 +271,9 @@ const AnalogSynthEmulator: React.FC = () => {
       if (mainOsc.state !== 'started') mainOsc.start();
       if (secondOsc.state !== 'started' && osc2Enabled) secondOsc.start();
     }
-    const handleKeyDown : any = (e : React.KeyboardEvent<any>) => {
-      if (e.repeat) return;
-      const key = e.key.toLowerCase();
+    const handleKeyDown = (ev : React.KeyboardEvent) => {
+      if (ev.repeat) return;
+      const key = ev.key.toLowerCase();
 
       // Cambiar octava
       if (key === 'q' && octave > 1) {
@@ -290,12 +292,13 @@ const AnalogSynthEmulator: React.FC = () => {
         const note = `${keyMap[key]}${noteOctave}`;        
 
         // Convertir nombre de nota a frecuencia y configurar el oscilador
-        if (oscillatorRef) {
+        if (oscillatorRef.current) {
+          // @ts-expect-error frequency value esta especificado en el onjeto Tone.Oscillator al que hace referencia oscillatorRef.current
           oscillatorRef.current.frequency.value = Tone.Frequency(note);
         }
         
         // Activar la envolvente
-        if (envelopeRef) {          
+        if (envelopeRef.current) {     
           envelopeRef.current.triggerAttack();
         }
 
@@ -308,12 +311,12 @@ const AnalogSynthEmulator: React.FC = () => {
         // }
         
         // Actualizar el estado de teclas activas
-        setActiveNotes((prev : any) => ({ ...prev, [key]: note }));
+        setActiveNotes((prev) => ({ ...prev, [key]: note }));
       }
     };
 
-    const handleKeyUp : any = (e : React.KeyboardEvent<any>)=> {
-      const key = e.key.toLowerCase();
+    const handleKeyUp = (ev : React.KeyboardEvent)=> {
+      const key = ev.key.toLowerCase();
       
       // Si la tecla liberada corresponde a una nota activa
       if (activeNotes[key]) {
@@ -321,7 +324,7 @@ const AnalogSynthEmulator: React.FC = () => {
         if(envelope) envelope.triggerRelease();
         
         // Actualizar el estado de teclas activas
-        setActiveNotes((prev : any) => {
+        setActiveNotes((prev) => {
           const newState = { ...prev };
           delete newState[key];
           return newState;
@@ -330,33 +333,37 @@ const AnalogSynthEmulator: React.FC = () => {
     };
 
     // Añadir event listeners
+    // @ts-expect-error No se encuentra el tipo especifico para este listener
     window.addEventListener('keydown', handleKeyDown);
+    // @ts-expect-error No se encuentra el tipo especifico para este listener
     window.addEventListener('keyup', handleKeyUp);
 
     // Limpieza
     return () => {
+      // @ts-expect-error No se encuentra el tipo especifico para este listener
       window.removeEventListener('keydown', handleKeyDown);
+      // @ts-expect-error No se encuentra el tipo especifico para este listener
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [envelope, activeNotes, octave]);
+  }, [isPlaying, mainOsc, osc2Enabled, secondOsc, envelope, activeNotes, octave]);
 
 return (
     <div className="synth-container">
-      <h1 className={"synthTitle"}>React Synth</h1>
+      <h1 className={"synthTitle"}>Configuracion Básica</h1>
       
-      <div className="synth-modules" ref={oscRef}>
-
-        <Oscilloscope 
+      <div className="synth-modules" ref={oscRef}>        
+        {/* <Oscilloscope           
           analyzerRef={analyserRef}
           containerRef={oscRef}
           key={`${oscType},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}
-        />
+        /> */}
 
         {/* <SpectrumAnalyzer
-          key={`2${oscType},${osc2Enabled},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}
+          key={`2${oscType},${osc2Enabled},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}          
           fftAnalyzerRef={spectrumRef}
           specRef={oscRef}
         /> */}
+        
         <VCO
           oscType={oscType} 
           setOscType={setOscType} 
@@ -524,4 +531,4 @@ return (
   );
 };
 
-export default AnalogSynthEmulator;
+export default BasicSynth;

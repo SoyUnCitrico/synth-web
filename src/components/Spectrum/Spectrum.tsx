@@ -1,23 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import * as Tone from 'tone';
 
 interface SpectrumProps {
-    fftAnalyzerRef : any
-    specRef : any
+    fftAnalyzerRef : React.RefObject<Tone.Analyser | null>
+    specRef : React.RefObject<HTMLDivElement | null>
 }
 
 const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
     const svgRef = useRef(null);
-    const requestRef = useRef<any>(null);
+    const requestRef = useRef<number>(0);
     const [dimensions, setDimensions] = useState({ width: 600, height: 200 });
   
     useEffect(() => {
-      if (!fftAnalyzerRef.current) return;
+      if (!fftAnalyzerRef?.current) return;
       
       const svg = d3.select(svgRef.current);
-      const analyzer = fftAnalyzerRef.current;
-      const bufferLength = analyzer.size;
+      const analyzer : Tone.Analyser | HTMLDivElement = fftAnalyzerRef?.current;
       
+      const bufferLength = analyzer?.size;
+       
       // Configurar elementos SVG para dibujar
       svg.selectAll("*").remove();
       
@@ -36,14 +38,14 @@ const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
       // Eje X (frecuencia)
       const xAxis = g.append("g")
         .attr("transform", `translate(0,${height})`)
-        // @ts-ignore
+        // @ts-expect-error Revisar tipos de d3
         .call(d3.axisBottom(x)
           .tickValues([20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000])
-        //   @ts-ignore
+          // @ts-expect-error Revisar tipos de d3
           .tickFormat(d => {
-            // @ts-ignore
+            // @ts-expect-error Revisar tipos de d3
             if (d >= 1000) {
-                 // @ts-ignore
+              // @ts-expect-error Revisar tipos de d3
               return `${d/1000}k`;
             }
             return d;
@@ -102,7 +104,7 @@ const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
       // };
       
       // Array de frecuencias para visualizar (escala logarítmica)
-      const frequencies : Array<any> = [];
+      const frequencies : Array<number> = [];
       for (let i = 0; i < 100; i++) {
         const freq = 20 * Math.pow(10, i * 3 / 100);
         if (freq <= 20000) {
@@ -115,9 +117,10 @@ const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
       
       // Función para animar la visualización
       const animate = () => {
+        
         requestRef.current = requestAnimationFrame(animate);
         
-        // Obtener los datos de espectro actuales
+        // Obtener los datos de espectro actuales        
         const fftValues = analyzer.getValue();
         
         // Limpiar barras existentes
@@ -125,7 +128,8 @@ const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
         
         // console.log(fftValues)
         // Crear barras para cada frecuencia
-        fftValues.forEach((freq : any, index : number) => {          
+        // @ts-expect-error Verificar elementos en fftValues
+        fftValues.forEach((freq : number, index : number) => {          
             if(freq !== -Infinity && freq < 0) {
               const value = freq;              
               // console.log(value);
@@ -154,9 +158,9 @@ const SpectrumAnalyzer = ({ fftAnalyzerRef, specRef } : SpectrumProps) => {
     
 
     useEffect(() => {
-      if(!!specRef) {
+      if(specRef) {
           setDimensions({
-              width: specRef.current.offsetWidth -50,
+              width: specRef.current !== null ? specRef.current.offsetWidth - 50 : 0,
               height: 200
           })
       }

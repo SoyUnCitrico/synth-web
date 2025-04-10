@@ -68,18 +68,20 @@ export const VCF: React.FC<VCFProps> = ({
           // Invertir la curva para highpass
           y = availableHeight * Math.min(1, Math.pow(normalizedX * 1, resonance / 2));
           break;
-        case 'bandpass':
+        case 'bandpass': {
           // Forma de campana para bandpass
-          const center = 0.5;
-          const width = 0.3 / resonance;
-          y = availableHeight * (1 - Math.min(1, Math.pow(Math.abs(normalizedX - center) / width, 2)));
+          const centerFilter = 0.5;
+          const widthFilter = 0.3 / resonance;
+          y = availableHeight * (1 - Math.min(1, Math.pow(Math.abs(normalizedX - centerFilter) / widthFilter, 2)));
           break;
-        case 'notch':
+        }
+        case 'notch': {
           // Forma de U invertida para notch
           const notchCenter = 0.5;
           const notchWidth = 0.2 / resonance;
           y = availableHeight * Math.min(1, Math.pow(Math.abs(normalizedX - notchCenter) / notchWidth, 1.5));
           break;
+        }
         case 'allpass':
           // Línea plana con pequeña fase para allpass
           y = availableHeight * 0.5;

@@ -1,23 +1,29 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, RefObject } from 'react';
 import * as d3 from 'd3';
+import * as Tone from 'tone';
 
-interface OscilloscopePros {
-    analyzerRef : any
-    containerRef :any
+
+interface OscilloscopePros {  
+    analyzerRef : React.RefObject<HTMLDivElement | HTMLElement | undefined | null> | RefObject<Tone.Analyser | null> | HTMLDivElement | null
+    containerRef : React.Ref<HTMLDivElement> | undefined | null
 }
 // Componente para el osciloscopio
-const Oscilloscope : any = ({analyzerRef, containerRef} : OscilloscopePros) => {
-  const svgRef = useRef<any>(null);
-  const requestRef = useRef<any>(null);
-  const oscRef = useRef<any>(containerRef);
-  const [dimensions, setDimensions] = useState<any>({ width: 200, height: 200 });
+const Oscilloscope = ({analyzerRef, containerRef} : OscilloscopePros) => {
+  const svgRef = useRef(null);
+  const requestRef = useRef<number | null>(null);
+  // const oscRef = useRef(containerRef);
+  const [dimensions, setDimensions] = useState({ width: 200, height: 200 });
 
   useEffect(() => {
-    if (!analyzerRef.current) return;
+    if(analyzerRef !== null) {
+      // @ts-expect-error No detecta current en HTMLElement
+      if (!analyzerRef.current) return;
+    }
     const svg = d3.select(svgRef.current);
-    const analyzer = analyzerRef.current;
+    // @ts-expect-error No detecta current en HTMLElement
+    const analyzer = analyzerRef?.current;
     const bufferLength = analyzer.size;
-    const dataArray : any = new Float32Array(bufferLength);
+    const dataArray : Float32Array = new Float32Array(bufferLength);
     
     // Configurar elementos SVG para dibujar
     svg.selectAll("*").remove();
@@ -41,8 +47,9 @@ const Oscilloscope : any = ({analyzerRef, containerRef} : OscilloscopePros) => {
     
     // Línea de la forma de onda
     const line = d3.line()
+      // @ts-expect-error Verificar elementos en d3.line
       .x((d,i) => x(i))
-        //@ts-ignore
+        // @ts-expect-error Verificar elementos en d3.line
       .y((d) => y(d))
       .curve(d3.curveLinear);
     
@@ -65,14 +72,14 @@ const Oscilloscope : any = ({analyzerRef, containerRef} : OscilloscopePros) => {
     
     // Función para animar la visualización
     const animate = () => {
-      requestRef.current = requestAnimationFrame(animate);
-      
+      requestRef.current = requestAnimationFrame(animate);      
       // Obtener los datos de audio actuales
-      analyzer.getValue().forEach((value: any, i : any) => {
+      analyzer.getValue().forEach((value: number, i : number) => {
         dataArray[i] = value;
       });
       
       // Actualizar la forma de onda
+      // @ts-expect-error Verificar d3.line
       path.attr("d", line(dataArray));
     };
     
@@ -81,21 +88,25 @@ const Oscilloscope : any = ({analyzerRef, containerRef} : OscilloscopePros) => {
     
     // Limpieza
     return () => {
-      cancelAnimationFrame(requestRef.current);
+      if(requestRef.current !== null) {
+        cancelAnimationFrame(requestRef.current);        
+      }
     };
   }, [analyzerRef, dimensions]);
 
   useEffect(() => {
-    if(!!oscRef) {
+    if(containerRef) {      
         setDimensions({
-            width: oscRef.current.offsetWidth -50,
+            // @ts-expect-error Offset width existe en HTMLDivElement de donde se toma referencia
+            width: containerRef.current.offsetWidth - 50,
             height: 200
         })
     }
-  }, [oscRef])
+  }, [containerRef])
   
   return (
-    <div ref={oscRef} className="module-big">
+    
+    <div ref={containerRef} className="module-big">
         <div className="module-header">
             <h2>Osciloscopio</h2>
         </div>

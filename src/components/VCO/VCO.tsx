@@ -12,7 +12,7 @@ interface VCOProps {
   setDetune?: (detune: number) => void;
   enabled?: boolean;
   setEnabled?: (enabled: boolean) => void;
-  oscRef?: any
+  oscRef?: React.RefObject<HTMLElement | HTMLDivElement | null> | null
 }
 const VCO: React.FC<VCOProps> = ({ 
   oscType, 
