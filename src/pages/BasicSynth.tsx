@@ -349,7 +349,7 @@ const BasicSynth: React.FC = () => {
 
 return (
     <div className="synth-container">
-      <h1 className={"synthTitle"}>Configuracion Básica</h1>
+      <h1 className={"synthTitle"}>Synth Básico</h1>
       
       <div className="synth-modules" ref={oscRef}>        
         {/* <Oscilloscope           
