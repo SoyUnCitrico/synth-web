@@ -5,8 +5,8 @@ import { VCF } from '../components/VCF/VCF';
 import { ADSR } from '../components/ADSR/ADSR';
 import { VCA } from '../components/VCA/VCA';
 import '../App.css';
-// import Oscilloscope from './components/Oscilloscope/Oscilloscope';
-// import SpectrumAnalyzer from './components/Spectrum/Spectrum';
+// import Oscilloscope from '../components/Oscilloscope/Oscilloscope';
+// import SpectrumAnalyzer from '../components/Spectrum/Spectrum';
 
 const keyMap : Record<string, string> = {
   'z': 'C',
@@ -356,9 +356,9 @@ return (
           analyzerRef={analyserRef}
           containerRef={oscRef}
           key={`${oscType},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}
-        /> */}
+        />
 
-        {/* <SpectrumAnalyzer
+        <SpectrumAnalyzer
           key={`2${oscType},${osc2Enabled},${osc2Type},${frequency??440},${detune?? 0},${filterFreq},${filterType},${filterRes},${volume ?? 0.2},${attack??0},${decay??0},${sustain??0},${release??0}`}          
           fftAnalyzerRef={spectrumRef}
           specRef={oscRef}
@@ -411,16 +411,7 @@ return (
         />
       </div>
       
-      <div className="keyboard-controls">
-        {/* <button 
-          className={`play-button ${isPlaying ? 'active' : ''}`} 
-          onMouseDown={playNote} 
-          onMouseUp={stopNote}
-          onTouchStart={playNote}
-          onTouchEnd={stopNote}
-        >
-          PLAY
-        </button> */}
+     <div className="keyboard-controls">
          <div className="mt-6 text-sm text-gray-600">
           Notas activas: {Object.values(activeNotes).join(', ') || 'Ninguna'}
         </div>
@@ -465,9 +456,8 @@ return (
                 <button
                     className={`play-button ${isPlaying ? 'active' : ''}`} 
                 >
-                    D#
+                    D#                                       
                 </button>
-                {/* <div></div> */}
             </div>
             <div className={"keys-white"}>
                 <button 
@@ -527,6 +517,7 @@ return (
             </div>
         </div>
       </div>
+
     </div>
   );
 };
