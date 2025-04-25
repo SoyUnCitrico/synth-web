@@ -7,20 +7,20 @@ import VCA from '../VCA/VCA';
 import Oscilloscope from '../Oscilloscope/Oscilloscope';
 import SpectrumAnalyzer from '../Spectrum/Spectrum';
 import Keyboard from '../Keyboard/Keyboard';
-import './Synth.css';
+import '../../App.css';
 
 const Synth: React.FC = () => {
   return (
     <SynthProvider>
-      <div className="synth-container">
-        <h1 className="synthTitle">Synth Básico</h1>
-        
+      <div className="synth-container">        
         <div className="synth-modules">
           <Oscilloscope />
           <SpectrumAnalyzer />
-          
-          <VCO isSecondary={false} />
-          <VCO isSecondary={true} />
+          <br/>
+          <VCO />
+          <VCO 
+            isSecondary
+          />
           
           <VCF />
           <ADSR />

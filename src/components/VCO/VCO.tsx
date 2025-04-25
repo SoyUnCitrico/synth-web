@@ -1,180 +1,111 @@
 import React from 'react';
-import * as Tone from 'tone';
+import { useSynthContext } from '../../context/SynthContext';
+import { ToneOscillatorType } from '../../models/synth/types';
 import './VCO.css';
 
 interface VCOProps {
-  oscType: Tone.ToneOscillatorType;
-  setOscType: (type: Tone.ToneOscillatorType) => void;
-  frequency: number;
-  setFrequency: (freq: number) => void;
-  isSecondary: boolean;
-  detune?: number;
-  setDetune?: (detune: number) => void;
-  enabled?: boolean;
-  setEnabled?: (enabled: boolean) => void;
-  oscRef?: React.RefObject<HTMLElement | HTMLDivElement | null> | null
+  isSecondary?: boolean;
+  vcoTitle?: string;
 }
+
 const VCO: React.FC<VCOProps> = ({ 
-  oscType, 
-  setOscType, 
-  frequency, 
-  setFrequency,
-  isSecondary,
-  detune = 0,
-  setDetune,
-  enabled = true,
-  setEnabled,
-  // oscRef
-}) => {
-  // Tipos de osciladores disponibles
-  const oscillatorTypes: Tone.ToneOscillatorType[] = ['sine', 'square', 'sawtooth', 'triangle'];
+  isSecondary = false, 
+  vcoTitle }) => {
+  const { params, setParams } = useSynthContext();
   
-  // Manejador para cambiar el tipo de oscilador
-  const handleOscTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setOscType(e.target.value as Tone.ToneOscillatorType);
-    // console.log(oscRef)
-    // if(oscRef) oscRef.current.type = e.target.value as Tone.ToneOscillatorType;
+  // Obtener los valores según si es el oscilador principal o secundario
+  const oscType = isSecondary ? params.osc2Type : params.oscType;
+  const frequency = params.frequency;
+  const frequency2 = params.frequency2;
+  const detune = params.detune;
+  const enabled = isSecondary ? params.osc2Enabled : true;
+  
+  // Manejar cambios en los parámetros
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value as ToneOscillatorType;
+    if (isSecondary) {
+      setParams({ osc2Type: value });
+    } else {
+      setParams({ oscType: value });
+    }
   };
   
-  // Manejador para cambiar la frecuencia
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFrequency(parseFloat(e.target.value));
+    const value = parseFloat(e.target.value);
+    setParams({ frequency: value });
   };
 
-  // Manejador para cambiar el detune (solo para VCO secundario)
+  const handleFrequency2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setParams({ frequency2: value });
+  };
+  
   const handleDetuneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (setDetune) {
-      setDetune(parseFloat(e.target.value));
-    }
+    const value = parseFloat(e.target.value);
+    setParams({ detune: value });
   };
-
-  // Manejador para activar/desactivar el oscilador secundario
+  
   const handleEnabledChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (setEnabled) {
-      setEnabled(e.target.checked);
+    if (isSecondary) {
+      setParams({ osc2Enabled: e.target.checked });
     }
   };
-
+  
   return (
-    <div className={`module vco-module ${isSecondary ? 'secondary-vco' : 'primary-vco'}`}>
-      <div className="module-header">
-        <h2>{isSecondary ? 'VCO 2' : 'VCO 1'}</h2>
-        {isSecondary && setEnabled && (
-          <div className="toggle-switch">
-            <label className="switch">
-              <input 
-                type="checkbox" 
-                checked={enabled}
-                onChange={handleEnabledChange}
-              />
-              <span className="slider"></span>
-            </label>
-            <span className="toggle-label">{enabled ? 'ON' : 'OFF'}</span>
-          </div>
-        )}
+    <div className="vco-module">
+      <h2>{isSecondary ?  vcoTitle == null ? 'VCO 2' :  vcoTitle : 'VCO 1'}</h2>
+      
+      {isSecondary && (
+        <div className="control-group">
+          <label>
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={handleEnabledChange}
+            />
+            Activado
+          </label>
+        </div>
+      )}
+      
+      <div className="control-group">
+        <label>Forma de onda</label>
+        <select value={oscType} onChange={handleTypeChange}>cv
+          <option value="sine">Senoidal</option>
+          <option value="triangle">Triangular</option>
+          <option value="sawtooth">Sierra</option>
+          <option value="square">Cuadrada</option>c
+        </select>
       </div>
       
-      <div className={`module-controls ${isSecondary && !enabled ? 'disabled' : ''}`}>
-        <div className="control-group">
-          <label htmlFor={`osc-type-${isSecondary ? '2' : '1'}`}>Forma de onda</label>
-          <select 
-            id={`osc-type-${isSecondary ? '2' : '1'}`}
-            value={oscType}
-            onChange={handleOscTypeChange}
-            className="control-select"
-            disabled={isSecondary && !enabled}
-          >
-            {oscillatorTypes.map(type => (
-              <option key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        {!isSecondary && (
-          <div className="control-group">
-            <label htmlFor="frequency">Frecuencia: {frequency.toFixed(0)} Hz</label>
-            <input 
-              type="number"           
-              value={frequency}
-              onChange={handleFrequencyChange}
-              className="control-input"
-            />
-            <input 
-              type="range" 
-              id="frequency" 
-              min="20" 
-              max="2000" 
-              step="1" 
-              value={frequency}
-              onChange={handleFrequencyChange}
-              className="control-slider"
-            />
-          </div>
-        )}
-        
-        {isSecondary && setDetune && (
-          <div className="control-group">
-            <label htmlFor="detune">Detune: {detune} cents</label>
-            <input 
-              type="number"           
-              value={detune}
-              onChange={handleDetuneChange}
-              className="control-input"
-              disabled={!enabled}
-            />
-            <input 
-              type="range" 
-              id="detune" 
-              min="-1200" 
-              max="1200" 
-              step="1" 
-              value={detune}
-              onChange={handleDetuneChange}
-              className="control-slider"
-              disabled={!enabled}
-            />
-          </div>
-        )}
-        
-        <div className="control-display">
-          <div className="waveform-display">
-            <svg viewBox="0 0 100 50" className={`waveform-svg ${isSecondary && !enabled ? 'disabled' : ''}`}>
-              {oscType === 'sine' && (
-                <path 
-                  d="M0,25 Q25,0 50,25 T100,25" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'square' && (
-                <path 
-                  d="M0,45 L0,5 L50,5 L50,45 L100,45 L100,5" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'sawtooth' && (
-                <path 
-                  d="M0,45 L50,5 L50,45 L100,5" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'triangle' && (
-                <path 
-                  d="M0,25 L25,0 L75,50 L100,25" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-            </svg>
-          </div>
-        </div>
+      <div className="control-group">
+        <label>Frecuencia: {isSecondary ? frequency2 : frequency} Hz</label>
+        <input
+          type="range"
+          min="20"
+          max="5000"
+          step="1"
+          value={isSecondary ? frequency2 : frequency}
+          onChange={isSecondary ? handleFrequency2Change : handleFrequencyChange}
+        />
       </div>
+      
+      {isSecondary && (
+        <div className="control-group">
+          <label>Desafinación: {detune} cents</label>
+          <input
+            type="range"
+            min="-200"
+            max="200"
+            step="1"
+            value={detune}
+            onChange={handleDetuneChange}
+          />
+        </div>
+      )}
     </div>
   );
 };
 
 export default VCO;
+

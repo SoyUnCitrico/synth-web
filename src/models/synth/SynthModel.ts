@@ -6,8 +6,9 @@ export default class SynthModel implements SynthModelInterface {
   private params: SynthParams = {
     oscType: 'sawtooth',
     frequency: 440,
-    osc2Type: 'sawtooth',
-    osc2Enabled: false,
+    frequency2: 440,
+    osc2Type: 'square',
+    osc2Enabled: true,
     detune: 0,
     filterType: 'lowpass',
     filterFreq: 20000,
@@ -22,7 +23,7 @@ export default class SynthModel implements SynthModelInterface {
   // Estado del teclado
   private keyboard: KeyboardState = {
     activeNotes: {},
-    octave: 4
+    octave: 3
   };
 
   // Estado de reproducción
@@ -78,7 +79,7 @@ export default class SynthModel implements SynthModelInterface {
     });
 
     this.oscillator2 = new Tone.Oscillator({
-      frequency: this.params.frequency,
+      frequency: this.params.frequency2,
       type: this.params.osc2Type,
       detune: this.params.detune
     });
@@ -104,7 +105,7 @@ export default class SynthModel implements SynthModelInterface {
     // Crear analizadores
     this.waveformAnalyzer = new Tone.Analyser({
       type: "waveform",
-      size: 512,
+      size: 256,
       smoothing: 0.8
     });
 
@@ -166,7 +167,7 @@ export default class SynthModel implements SynthModelInterface {
     // Actualizar oscilador 2
     if (this.oscillator2) {
       this.oscillator2.type = this.params.osc2Type;
-      this.oscillator2.frequency.value = this.params.frequency;
+      this.oscillator2.frequency.value = this.params.frequency2;
       this.oscillator2.detune.value = this.params.detune;
       
       // Conectar/desconectar según el estado
@@ -207,8 +208,9 @@ export default class SynthModel implements SynthModelInterface {
     // Si se especifica una nota, actualizar la frecuencia
     if (note && this.oscillator1 && this.oscillator2) {
       const frequency = Tone.Frequency(note).toFrequency();
+      const frequency2 = Tone.Frequency(note).toFrequency() + this.params.detune;
       this.oscillator1.frequency.value = frequency;
-      this.oscillator2.frequency.value = frequency;
+      this.oscillator2.frequency.value = frequency2;
     }
 
     // Disparar el envelope
@@ -227,10 +229,10 @@ export default class SynthModel implements SynthModelInterface {
 
   // Análisis
   public getWaveformData(): Float32Array {
-    return this.waveformAnalyzer?.getValue() || new Float32Array();
+    return this.waveformAnalyzer?.getValue() as Float32Array<ArrayBufferLike> || new Float32Array();
   }
 
   public getSpectrumData(): Float32Array {
-    return this.spectrumAnalyzer?.getValue() || new Float32Array();
+    return this.spectrumAnalyzer?.getValue() as Float32Array<ArrayBufferLike> || new Float32Array();
   }
 }

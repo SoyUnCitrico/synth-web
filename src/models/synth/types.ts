@@ -5,7 +5,7 @@ export interface SynthParams {
   // Oscilador 1
   oscType: ToneOscillatorType;
   frequency: number;
-  
+  frequency2: number;
   // Oscilador 2
   osc2Type: ToneOscillatorType;
   osc2Enabled: boolean;
