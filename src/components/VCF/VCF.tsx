@@ -13,7 +13,7 @@ interface VCFProps {
   setResonance: (res: number) => void;
 }
 
-export const VCF: React.FC<VCFProps> = ({
+const VCF: React.FC<VCFProps> = ({
   filterType,
   setFilterType,
   frequency,
@@ -194,3 +194,5 @@ export const VCF: React.FC<VCFProps> = ({
     </div>
   );
 };
+
+export default VCF;

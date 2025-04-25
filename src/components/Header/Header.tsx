@@ -1,6 +1,7 @@
 import React from  'react';
 import { FaArrowLeft, FaArrowRight } from 'react-icons/fa';
 import { PiPianoKeysFill } from "react-icons/pi";
+import { Link } from 'react-router-dom';
 import './Header.css'
 
 const Header : React.FC = () => {
@@ -8,8 +9,10 @@ const Header : React.FC = () => {
         <nav className={"header-nav"}>
             <div className={"header-container"}>
                 <div className={"logo-container"}>
-                    <PiPianoKeysFill/>
-                    <h4>ReactSynth</h4>
+                    <Link to={"/"} className='header-link'>
+                        <PiPianoKeysFill/>
+                        <h4>ReactSynth</h4>
+                    </Link>
                 </div>
                 <div className={"button-container"}>
                     <button>

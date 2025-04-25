@@ -12,7 +12,7 @@ interface ADSRProps {
   setRelease: (value: number) => void;
 }
 
-export const ADSR: React.FC<ADSRProps> = ({
+const ADSR: React.FC<ADSRProps> = ({
   attack, setAttack,
   decay, setDecay,
   sustain, setSustain,
@@ -128,3 +128,5 @@ export const ADSR: React.FC<ADSRProps> = ({
     </div>
   );
 };
+
+export default ADSR;

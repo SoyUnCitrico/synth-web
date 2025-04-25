@@ -1,0 +1,96 @@
+/* Teclado responsivo */
+.keyboard-controls {
+  display: grid;
+  justify-content: center;
+  margin: 0.5rem auto 1rem;
+  padding: 1rem;
+  background-color: #444;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.keys-container {
+  padding: 0.5rem auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: 
+      "blacks"
+      "whites";
+  gap: 0.25rem;
+  /* background-color: #ff5500; */
+  overflow: hidden;
+  /* place-items: center; */
+
+  .keys-black {
+    grid-area: blacks;
+    display: flex;
+    margin-left: 40px;
+    div {
+      height: 50px;
+      width: 80px;
+    }
+    button {
+      background-color: #5e5e5e;
+      color: #e0e0e0;
+      text-align: center;
+    }
+  }
+  .keys-white {
+    grid-area: whites;
+    display: flex;
+    
+    button {
+      background-color: #e0e0e0;
+      color: #444;
+    }
+  }
+}
+
+.play-button {
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 80px;
+  height: 50px;
+  margin: 4px;
+}
+
+.play-button:active,
+.play-button.active {
+  background-color: #ff5500;
+  transform: scale(0.98);
+}
+
+@media(max-width:420px) {
+  .keyboard-controls {
+    margin: 0.25rem auto 1rem;
+  }
+  .keys-container {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "whites blacks";
+    gap: 0;
+    .keys-black {
+      div {
+        width: 60px;
+        height: 60px;
+      }
+      margin-left: 0px;
+    }
+    .keys-black, .keys-white {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+  }
+
+  .play-button {
+    width: 60px;
+    height: 60px;
+  }
+}

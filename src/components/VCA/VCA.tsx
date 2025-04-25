@@ -6,7 +6,7 @@ interface VCAProps {
   setVolume: (value: number) => void;
 }
 
-export const VCA: React.FC<VCAProps> = ({ volume, setVolume }) => {
+const VCA: React.FC<VCAProps> = ({ volume, setVolume }) => {
   // Manejador para el control de volumen
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
@@ -47,3 +47,5 @@ export const VCA: React.FC<VCAProps> = ({ volume, setVolume }) => {
     </div>
   );
 };
+
+export default VCA;
