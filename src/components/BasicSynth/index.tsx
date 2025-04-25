@@ -12,22 +12,17 @@ import '../../App.css';
 const Synth: React.FC = () => {
   return (
     <SynthProvider>
-      <div className="synth-container">        
+      <div className="synth-container">
+        <Keyboard />        
+        <Oscilloscope />
+        <SpectrumAnalyzer />
         <div className="synth-modules">
-          <Oscilloscope />
-          <SpectrumAnalyzer />
-          <br/>
           <VCO />
-          <VCO 
-            isSecondary
-          />
-          
+          <VCO isSecondary />          
           <VCF />
           <ADSR />
           <VCA />
-        </div>
-        
-        <Keyboard />
+        </div>        
       </div>
     </SynthProvider>
   );
