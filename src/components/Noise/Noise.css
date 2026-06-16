@@ -1,0 +1,5 @@
+/* Módulo de ruido. Acento gris-azulado para distinguirlo de osciladores/filtro. */
+.noise-module {
+  --accent: #9fb3c8;
+  --glow: rgba(159, 179, 200, 0.4);
+}

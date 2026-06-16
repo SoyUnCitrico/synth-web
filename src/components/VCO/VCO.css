@@ -1,24 +1,58 @@
+/* Pantalla de forma de onda: fósforo CRT con scanlines */
 .waveform-display {
-    background-color: #222;
-    padding: 1rem;
-    border-radius: 5px;
-    margin-top: 0.5rem;
-  }
-  
-  .waveform-svg {
-    width: 100%;
-    height: 50px;
-    stroke: #ff7700;
-  }
-  
-  .waveform-svg.disabled {
-    stroke: #666;
-  }
-  
-  .primary-vco .waveform-svg {
-    stroke: #ff7700;
-  }
-  
-  .secondary-vco .waveform-svg {
-    stroke: #ffaa00;
-  }
+  position: relative;
+  background: radial-gradient(120% 130% at 50% 0%, #0a1a16 0%, #04100c 70%, #020a07 100%);
+  padding: 1rem;
+  border-radius: 5px;
+  margin-top: 0.5rem;
+  border: 1px solid #000;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(57, 255, 149, 0.06);
+  overflow: hidden;
+}
+.waveform-display::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.3) 2px 3px);
+}
+
+.waveform-svg {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 4px rgba(25, 229, 255, 0.8));
+}
+
+.waveform-svg.disabled {
+  stroke: #3a4753;
+  filter: none;
+}
+
+.primary-vco .waveform-svg {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 5px rgba(25, 229, 255, 0.85));
+}
+
+.secondary-vco .waveform-svg {
+  stroke: var(--amber);
+  filter: drop-shadow(0 0 5px rgba(255, 138, 30, 0.8));
+}
+
+/* Icono de forma de onda dentro del selector (checkbox). */
+.wave-icon {
+  width: 34px;
+  height: 18px;
+  fill: none;
+  vertical-align: middle;
+  stroke: #6b7785;
+}
+.primary-vco .checkbox-option input:checked + .wave-icon {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 3px rgba(25, 229, 255, 0.8));
+}
+.secondary-vco .checkbox-option input:checked + .wave-icon {
+  stroke: var(--amber);
+  filter: drop-shadow(0 0 3px rgba(255, 138, 30, 0.8));
+}

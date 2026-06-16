@@ -1,0 +1,10 @@
+/* Env Filtro (AD) - pantalla CRT compartida con el resto de displays */
+.filterenv-svg {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  /* el trazado usa stroke="currentColor" */
+  color: #b06bff;
+  stroke: #b06bff;
+  filter: drop-shadow(0 0 4px rgba(176, 107, 255, 0.8));
+}

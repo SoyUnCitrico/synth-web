@@ -4,13 +4,35 @@
 }
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* ── Paleta: dark cyberpunk + brillo cálido de equipo vintage ── */
+  --bg-0: #05070a;          /* fondo más profundo */
+  --bg-1: #0a0e14;          /* fondo base */
+  --panel-hi: #232c38;      /* canto superior del metal (luz) */
+  --panel-mid: #161c25;     /* cara del panel */
+  --panel-lo: #0d1218;      /* canto inferior del metal (sombra) */
+  --groove: #05080c;        /* ranuras / huecos hundidos */
+  --line: #2a3644;          /* divisores / bordes */
+
+  --ink: #c4d3e4;           /* texto principal */
+  --ink-dim: #6d8196;       /* texto secundario */
+
+  --cyan: #19e5ff;          /* acento neón primario */
+  --cyan-deep: #0aa9c4;
+  --magenta: #ff2bd6;       /* acento neón secundario */
+  --amber: #ff8a1e;         /* brillo cálido "tubo de vacío" */
+  --amber-soft: #ffb45c;
+  --led-green: #3dff95;
+  --led-red: #ff4d57;
+
+  --font-display: 'Orbitron', 'Arial Narrow', sans-serif;
+  --font-mono: 'Share Tech Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  font-family: var(--font-mono);
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: dark;
+  color: var(--ink);
+  background-color: var(--bg-1);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -20,19 +42,31 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--cyan);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--amber);
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
+  color: var(--ink);
+  /* Plano de consola: viñeta + rejilla técnica tenue + halos de neón */
+  background-color: var(--bg-0);
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, rgba(25, 229, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 100% 110%, rgba(255, 43, 214, 0.06), transparent 60%),
+    linear-gradient(transparent 0 31px, rgba(42, 54, 68, 0.18) 31px 32px),
+    linear-gradient(90deg, transparent 0 31px, rgba(42, 54, 68, 0.18) 31px 32px),
+    linear-gradient(180deg, var(--bg-0), var(--bg-1));
+  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+  background-attachment: fixed;
 }
 
 h1 {
+  font-family: var(--font-display);
   font-size: 3.2em;
   line-height: 1.1;
 }
@@ -44,27 +78,33 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #11161d;
+  color: var(--ink);
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--cyan);
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* Scrollbar acorde a la consola */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-0);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--panel-hi), var(--panel-lo));
+  border: 2px solid var(--bg-0);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-deep);
 }

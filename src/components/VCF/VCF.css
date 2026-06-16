@@ -1,62 +1,65 @@
-/* VCF.css - Estilos específicos para el filtro */
-.vcf-module {
-    background-color: #333;
-    border-radius: 8px;
-  }
-  
-  .filter-display {
-    background-color: #222;
-    padding: 1rem;
-    border-radius: 5px;
-    margin: 0.5rem 0;
-  }
-  
-  .filter-curve {
-    position: relative;
+/* VCF.css - filtro */
+.filter-display {
+  position: relative;
+  background: radial-gradient(120% 130% at 50% 0%, #0a1a16 0%, #04100c 70%, #020a07 100%);
+  padding: 1rem;
+  border-radius: 5px;
+  margin: 0.5rem 0;
+  border: 1px solid #000;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+}
+.filter-display::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.3) 2px 3px);
+}
+
+.filter-curve {
+  position: relative;
+  width: 100%;
+  height: 50px;
+}
+
+.filter-svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  stroke: var(--magenta);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.35));
+}
+
+/* Color de la curva según el tipo de filtro */
+.vcf-module[data-filter-type="lowpass"] .filter-svg {
+  stroke: #19e5ff;
+}
+.vcf-module[data-filter-type="highpass"] .filter-svg {
+  stroke: #ff8a1e;
+}
+.vcf-module[data-filter-type="bandpass"] .filter-svg {
+  stroke: #ffd23f;
+}
+.vcf-module[data-filter-type="notch"] .filter-svg {
+  stroke: #ff2bd6;
+}
+.vcf-module[data-filter-type="allpass"] .filter-svg {
+  stroke: #3dff95;
+}
+
+/* Marcadores de escala de frecuencia */
+.frequency-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  padding: 0 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .vcf-module {
     width: 100%;
-    height: 50px;
+    min-width: auto;
   }
-  
-  .filter-svg {
-    width: 100%;
-    height: 100%;
-    stroke: #00aaff;
-  }
-  
-  /* Colores específicos para cada tipo de filtro */
-  .vcf-module[data-filter-type="lowpass"] .filter-svg {
-    stroke: #00aaff;
-  }
-  
-  .vcf-module[data-filter-type="highpass"] .filter-svg {
-    stroke: #ff5500;
-  }
-  
-  .vcf-module[data-filter-type="bandpass"] .filter-svg {
-    stroke: #ffaa00;
-  }
-  
-  .vcf-module[data-filter-type="notch"] .filter-svg {
-    stroke: #ff00aa;
-  }
-  
-  .vcf-module[data-filter-type="allpass"] .filter-svg {
-    stroke: #00ff88;
-  }
-  
-  /* Marcadores para la escala de frecuencia */
-  .frequency-scale {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.7rem;
-    color: #888;
-    padding: 0 0.5rem;
-  }
-  
-  /* Estilos responsivos para VCF */
-  @media (max-width: 768px) {
-    .vcf-module {
-      width: 100%;
-      min-width: auto;
-    }
-  }
+}

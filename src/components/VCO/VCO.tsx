@@ -12,30 +12,54 @@ interface VCOProps {
   setDetune?: (detune: number) => void;
   enabled?: boolean;
   setEnabled?: (enabled: boolean) => void;
+  pwm: number;
+  setPwm: (value: number) => void;
   oscRef?: React.RefObject<HTMLElement | HTMLDivElement | null> | null
+  label?: string;
+  index?: number;
 }
-const VCO: React.FC<VCOProps> = ({ 
-  oscType, 
-  setOscType, 
-  frequency, 
+
+// Trazos SVG de cada forma de onda (viewBox 0 0 100 50). Se reutilizan para el icono
+// del selector y para la pantalla de visualización.
+const WAVE_PATHS: Record<string, string> = {
+  sine: 'M0,25 Q25,0 50,25 T100,25',
+  square: 'M0,45 L0,5 L50,5 L50,45 L100,45 L100,5',
+  sawtooth: 'M0,45 L50,5 L50,45 L100,5',
+  triangle: 'M0,25 L25,0 L75,50 L100,25',
+};
+
+// Formas de onda disponibles (selector único, estilo checkbox como el canal de ruido).
+// `label` se usa como tooltip/accesibilidad; el control muestra un icono de la onda.
+const WAVEFORMS: { value: Tone.ToneOscillatorType; label: string }[] = [
+  { value: 'sine', label: 'Senoidal' },
+  { value: 'square', label: 'Cuadrada' },
+  { value: 'sawtooth', label: 'Sierra' },
+  { value: 'triangle', label: 'Triangular' },
+];
+
+const VCO: React.FC<VCOProps> = ({
+  oscType,
+  setOscType,
+  frequency,
   setFrequency,
   isSecondary,
   detune = 0,
   setDetune,
   enabled = true,
   setEnabled,
+  pwm,
+  setPwm,
   // oscRef
+  label,
+  index,
 }) => {
-  // Tipos de osciladores disponibles
-  const oscillatorTypes: Tone.ToneOscillatorType[] = ['sine', 'square', 'sawtooth', 'triangle'];
-  
-  // Manejador para cambiar el tipo de oscilador
-  const handleOscTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setOscType(e.target.value as Tone.ToneOscillatorType);
-    // console.log(oscRef)
-    // if(oscRef) oscRef.current.type = e.target.value as Tone.ToneOscillatorType;
-  };
-  
+  // Etiqueta e identificador (únicos) del módulo.
+  const title = label ?? (isSecondary ? 'VCO 2' : 'VCO 1');
+  const idSuffix = index ?? (isSecondary ? 2 : 1);
+
+  // El módulo se deshabilita si es secundario y está apagado.
+  const isDisabled = isSecondary && !enabled;
+
   // Manejador para cambiar la frecuencia
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFrequency(parseFloat(e.target.value));
@@ -58,7 +82,7 @@ const VCO: React.FC<VCOProps> = ({
   return (
     <div className={`module vco-module ${isSecondary ? 'secondary-vco' : 'primary-vco'}`}>
       <div className="module-header">
-        <h2>{isSecondary ? 'VCO 2' : 'VCO 1'}</h2>
+        <h2>{title}</h2>
         {isSecondary && setEnabled && (
           <div className="toggle-switch">
             <label className="switch">
@@ -74,24 +98,44 @@ const VCO: React.FC<VCOProps> = ({
         )}
       </div>
       
-      <div className={`module-controls ${isSecondary && !enabled ? 'disabled' : ''}`}>
+      <div className={`module-controls ${isDisabled ? 'disabled' : ''}`}>
         <div className="control-group">
-          <label htmlFor={`osc-type-${isSecondary ? '2' : '1'}`}>Forma de onda</label>
-          <select 
-            id={`osc-type-${isSecondary ? '2' : '1'}`}
-            value={oscType}
-            onChange={handleOscTypeChange}
-            className="control-select"
-            disabled={isSecondary && !enabled}
-          >
-            {oscillatorTypes.map(type => (
-              <option key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
+          <label>Forma de onda</label>
+          <div className={`checkbox-group ${isDisabled ? 'disabled' : ''}`}>
+            {WAVEFORMS.map((wave) => (
+              <label key={wave.value} className="checkbox-option" title={wave.label}>
+                <input
+                  type="checkbox"
+                  checked={oscType === wave.value}
+                  disabled={isDisabled}
+                  onChange={() => setOscType(wave.value)}
+                />
+                <svg viewBox="0 0 100 50" className="wave-icon" role="img" aria-label={wave.label}>
+                  <path d={WAVE_PATHS[wave.value]} fill="none" strokeWidth="8" />
+                </svg>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
-        
+
+        {/* PWM: sólo activo con onda cuadrada (oscilador de pulso). width 0 = 50%. */}
+        {oscType === 'square' && (
+          <div className="control-group">
+            <label htmlFor={`pwm-${idSuffix}`}>PWM: {(pwm * 100).toFixed(0)}%</label>
+            <input
+              type="range"
+              id={`pwm-${idSuffix}`}
+              min="-0.95"
+              max="0.95"
+              step="0.01"
+              value={pwm}
+              onChange={(e) => setPwm(parseFloat(e.target.value))}
+              className="control-slider"
+              disabled={isDisabled}
+            />
+          </div>
+        )}
+
         {!isSecondary && (
           <div className="control-group">
             <label htmlFor="frequency">Frecuencia: {frequency.toFixed(0)} Hz</label>
@@ -116,17 +160,17 @@ const VCO: React.FC<VCOProps> = ({
         
         {isSecondary && setDetune && (
           <div className="control-group">
-            <label htmlFor="detune">Detune: {detune} cents</label>
-            <input 
-              type="number"           
+            <label htmlFor={`detune-${idSuffix}`}>Detune: {detune} cents</label>
+            <input
+              type="number"
               value={detune}
               onChange={handleDetuneChange}
               className="control-input"
               disabled={!enabled}
             />
-            <input 
-              type="range" 
-              id="detune" 
+            <input
+              type="range"
+              id={`detune-${idSuffix}`}
               min="-1200" 
               max="1200" 
               step="1" 
@@ -140,35 +184,8 @@ const VCO: React.FC<VCOProps> = ({
         
         <div className="control-display">
           <div className="waveform-display">
-            <svg viewBox="0 0 100 50" className={`waveform-svg ${isSecondary && !enabled ? 'disabled' : ''}`}>
-              {oscType === 'sine' && (
-                <path 
-                  d="M0,25 Q25,0 50,25 T100,25" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'square' && (
-                <path 
-                  d="M0,45 L0,5 L50,5 L50,45 L100,45 L100,5" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'sawtooth' && (
-                <path 
-                  d="M0,45 L50,5 L50,45 L100,5" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
-              {oscType === 'triangle' && (
-                <path 
-                  d="M0,25 L25,0 L75,50 L100,25" 
-                  fill="none" 
-                  strokeWidth="2"
-                />
-              )}
+            <svg viewBox="0 0 100 50" className={`waveform-svg ${isDisabled ? 'disabled' : ''}`}>
+              <path d={WAVE_PATHS[oscType]} fill="none" strokeWidth="2" />
             </svg>
           </div>
         </div>
