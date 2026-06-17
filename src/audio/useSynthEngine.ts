@@ -4,6 +4,7 @@ import { ModMatrix } from './cv/ModMatrix';
 import { MOD_SOURCES, MOD_DESTS, patchKey, type ModPatch } from './cv/patch';
 import type { ModSourceId } from './cv/types';
 import type { GateDestId } from './cv/gates';
+import { DRUM_VOICES, synthesizeKit } from './drums/kit';
 
 export type NoiseType = 'white' | 'pink' | 'brown';
 // VCF 2: filtro insertable en serie sobre una sola voz (su propio routeo, fuera de la
@@ -128,6 +129,16 @@ export interface SynthParams {
   // Delay (efecto de envío)
   delayTime: number; // segundos
   delayFeedback: number; // 0..1
+  // Batería: 4 voces de sample en paralelo (índice 0..3). Arrays de longitud DRUM_VOICES.
+  drumPitch: number[]; // playbackRate por voz (0.25..4)
+  drumDecay: number[]; // s (decay de la envolvente de cada golpe)
+  drumVol: number[]; // dB por voz
+  drumRevSends: number[]; // envío al reverb de batería por voz (0..1)
+  drumDelSends: number[]; // envío al delay de batería por voz (0..1)
+  // Efectos propios de la batería (independientes de los del sinte).
+  drumReverbDecay: number; // s
+  drumDelayTime: number; // s
+  drumDelayFeedback: number; // 0..1
 }
 
 export interface SynthEngine {
@@ -148,6 +159,11 @@ export interface SynthEngine {
   setSeqCv3: (value: number, time?: number) => void;
   /** Fija el CV de la velocidad (Vel) del secuenciador 1 (0..1). */
   setSeqVel: (value: number, time?: number) => void;
+  /** Dispara una voz de batería (one-shot): reproduce su sample con su pitch y la moldea con
+   *  su envolvente de decay. `velocity` (0..1) escala el pico. */
+  triggerDrum: (voice: number, time?: number, velocity?: number) => void;
+  /** Carga un sample (URL o File del usuario) en una voz de batería. */
+  loadDrumSample: (voice: number, src: string | File) => Promise<void>;
   /** Analizador de forma de onda (osciloscopio). */
   waveformAnalyser: React.RefObject<Tone.Analyser | null>;
   /** Analizador FFT (espectro). */
@@ -211,9 +227,25 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   const gainRef = useRef<Tone.Gain | null>(null);
   const reverbRef = useRef<Tone.Reverb | null>(null);
   const delayRef = useRef<Tone.FeedbackDelay | null>(null);
+  // Efectos PROPIOS de la batería (independientes de los del sinte).
+  const drumReverbRef = useRef<Tone.Reverb | null>(null);
+  const drumDelayRef = useRef<Tone.FeedbackDelay | null>(null);
   // Envíos por canal (índice 0..3 = VCO1, VCO2, VCO3, Ruido) hacia cada efecto.
   const reverbSendRefs = useRef<Tone.Gain[]>([]);
   const delaySendRefs = useRef<Tone.Gain[]>([]);
+  // Compuertas del envío del SINTE a los efectos: gateadas por la ADSR para que los efectos
+  // (compartidos con la batería) no zumben con los osciladores continuos. La batería entra a
+  // los efectos sin compuerta (es transitoria).
+  const synthRevGateRef = useRef<Tone.Gain | null>(null);
+  const synthDelGateRef = useRef<Tone.Gain | null>(null);
+  // Bus de salida final (post-VCA): suma sinte seco + retornos de efectos + batería seca.
+  const outBusRef = useRef<Tone.Gain | null>(null);
+  // Batería: por voz, player → envolvente (decay) → volumen → bus de salida + envíos.
+  const drumPlayerRefs = useRef<Tone.Player[]>([]);
+  const drumEnvRefs = useRef<Tone.AmplitudeEnvelope[]>([]);
+  const drumVolRefs = useRef<Tone.Gain[]>([]);
+  const drumRevSendRefs = useRef<Tone.Gain[]>([]);
+  const drumDelSendRefs = useRef<Tone.Gain[]>([]);
   const waveformRef = useRef<Tone.Analyser | null>(null);
   const fftRef = useRef<Tone.Analyser | null>(null);
 
@@ -341,24 +373,66 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     noise.connect(chN);
     ch1.connect(filter);
 
-    // Envíos por canal: cada canal del mixer alimenta un Gain de envío (post-fader) hacia
-    // cada efecto. El nivel de cada Gain es el "amount" del envío de ese canal.
+    // Bus de salida final (post-VCA): suma el sinte seco (vía VCA), los retornos de efectos
+    // y la batería seca. Va a la salida y a los analizadores.
+    const outBus = new Tone.Gain(1);
+
+    // Compuertas del envío del SINTE a los efectos, gateadas por la ADSR. Así los efectos
+    // (cuyo retorno va al outBus SIN compuerta, para que las colas resuenen y la batería las
+    // use) no zumban con los osciladores continuos del sinte.
+    const synthRevGate = new Tone.Gain(0);
+    const synthDelGate = new Tone.Gain(0);
+    envelope.connect(synthRevGate.gain);
+    envelope.connect(synthDelGate.gain);
+
+    // Envíos por canal del SINTE (post-fader) → compuerta del sinte → efecto.
     const channels = [ch1, ch2, ch3, chN];
     const reverbSends = channels.map((_, i) => new Tone.Gain(params.reverbSends[i] ?? 0));
     const delaySends = channels.map((_, i) => new Tone.Gain(params.delaySends[i] ?? 0));
     channels.forEach((ch, i) => {
       ch.connect(reverbSends[i]);
-      reverbSends[i].connect(reverb);
+      reverbSends[i].connect(synthRevGate);
       ch.connect(delaySends[i]);
-      delaySends[i].connect(delay);
+      delaySends[i].connect(synthDelGate);
+    });
+    synthRevGate.connect(reverb);
+    synthDelGate.connect(delay);
+
+    // Efectos PROPIOS de la batería (independientes de los del sinte): reverb + delay
+    // dedicados, retornando al outBus (wet 1 = envío puro; el nivel lo dan los envíos por voz).
+    const drumReverb = new Tone.Reverb({ decay: params.drumReverbDecay, preDelay: 0.01, wet: 1 });
+    const drumDelay = new Tone.FeedbackDelay({ delayTime: params.drumDelayTime, feedback: params.drumDelayFeedback, wet: 1 });
+    drumReverb.connect(outBus);
+    drumDelay.connect(outBus);
+
+    // Batería: 4 voces en paralelo. player → envolvente (decay) → volumen → outBus (seco),
+    // y volumen → envío a SUS efectos (transitorio, sin compuerta).
+    const drumPlayers = Array.from({ length: DRUM_VOICES }, () => new Tone.Player({ fadeOut: 0.005 }));
+    const drumEnvs = Array.from(
+      { length: DRUM_VOICES },
+      (_, i) => new Tone.AmplitudeEnvelope({ attack: 0.001, decay: params.drumDecay[i] ?? 0.3, sustain: 0, release: 0.02 }),
+    );
+    const drumVols = Array.from({ length: DRUM_VOICES }, (_, i) => new Tone.Gain(dbToGainMuted(params.drumVol[i] ?? 0)));
+    const drumRevSends = Array.from({ length: DRUM_VOICES }, (_, i) => new Tone.Gain(params.drumRevSends[i] ?? 0));
+    const drumDelSends = Array.from({ length: DRUM_VOICES }, (_, i) => new Tone.Gain(params.drumDelSends[i] ?? 0));
+    drumPlayers.forEach((p, i) => {
+      p.playbackRate = params.drumPitch[i] ?? 1;
+      p.connect(drumEnvs[i]);
+      drumEnvs[i].connect(drumVols[i]);
+      drumVols[i].connect(outBus);
+      drumVols[i].connect(drumRevSends[i]);
+      drumRevSends[i].connect(drumReverb);
+      drumVols[i].connect(drumDelSends[i]);
+      drumDelSends[i].connect(drumDelay);
     });
 
-    // Cadena de audio: filtro → ganancia maestra/VCA → analizadores / salida. Los retornos
-    // de los efectos de envío también entran a la VCA (efectos de habilitación los conectan).
+    // Cadena de audio: filtro → ganancia maestra/VCA → outBus → analizadores / salida.
+    // Los retornos de reverb/delay → outBus los conectan los efectos de habilitación.
     filter.connect(gain);
-    gain.connect(waveform);
-    gain.connect(fft);
-    gain.toDestination();
+    gain.connect(outBus);
+    outBus.connect(waveform);
+    outBus.connect(fft);
+    outBus.toDestination();
 
     // Matriz de modulación (CV): el ADSR y las AD (0..1) y los LFO (-1..1) son fuentes;
     // los AudioParams modulables son destinos. El cableado concreto lo fija el efecto de
@@ -425,6 +499,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     delayRef.current = delay;
     reverbSendRefs.current = reverbSends;
     delaySendRefs.current = delaySends;
+    synthRevGateRef.current = synthRevGate;
+    synthDelGateRef.current = synthDelGate;
+    drumReverbRef.current = drumReverb;
+    drumDelayRef.current = drumDelay;
+    outBusRef.current = outBus;
+    drumPlayerRefs.current = drumPlayers;
+    drumEnvRefs.current = drumEnvs;
+    drumVolRefs.current = drumVols;
+    drumRevSendRefs.current = drumRevSends;
+    drumDelSendRefs.current = drumDelSends;
     waveformRef.current = waveform;
     fftRef.current = fft;
 
@@ -456,6 +540,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       delay.dispose();
       reverbSends.forEach((g) => g.dispose());
       delaySends.forEach((g) => g.dispose());
+      synthRevGate.dispose();
+      synthDelGate.dispose();
+      drumPlayers.forEach((p) => p.dispose());
+      drumEnvs.forEach((e) => e.dispose());
+      drumVols.forEach((g) => g.dispose());
+      drumRevSends.forEach((g) => g.dispose());
+      drumDelSends.forEach((g) => g.dispose());
+      drumReverb.dispose();
+      drumDelay.dispose();
+      outBus.dispose();
       waveform.dispose();
       fft.dispose();
     };
@@ -575,21 +669,21 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     delaySendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.delaySends[i] ?? 0, now));
   }, [params.delaySends]);
 
-  // Activar/desactivar el retorno de cada efecto de envío (conecta/desconecta a la VCA).
+  // Activar/desactivar el retorno de cada efecto de envío (conecta/desconecta al outBus).
   useEffect(() => {
     const reverb = reverbRef.current;
-    const gain = gainRef.current;
-    if (!reverb || !gain) return;
+    const outBus = outBusRef.current;
+    if (!reverb || !outBus) return;
     reverb.disconnect();
-    if (params.reverbSendEnabled) reverb.connect(gain);
+    if (params.reverbSendEnabled) reverb.connect(outBus);
   }, [params.reverbSendEnabled]);
 
   useEffect(() => {
     const delay = delayRef.current;
-    const gain = gainRef.current;
-    if (!delay || !gain) return;
+    const outBus = outBusRef.current;
+    if (!delay || !outBus) return;
     delay.disconnect();
-    if (params.delaySendEnabled) delay.connect(gain);
+    if (params.delaySendEnabled) delay.connect(outBus);
   }, [params.delaySendEnabled]);
 
   // Filtro
@@ -763,6 +857,73 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     delayRef.current?.feedback.setValueAtTime(params.delayFeedback, Tone.now());
   }, [params.delayFeedback]);
 
+  // --- Batería ---
+  // Kit por defecto: se sintetiza una vez y se carga en los players (el usuario puede
+  // reemplazar cualquier voz con loadDrumSample).
+  useEffect(() => {
+    let cancelled = false;
+    synthesizeKit()
+      .then((buffers) => {
+        if (cancelled) return;
+        buffers.forEach((buf, i) => {
+          const p = drumPlayerRefs.current[i];
+          // No pisar una voz que el usuario ya cargó (player con buffer propio).
+          if (p && !p.loaded) p.buffer = buf;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Pitch (playbackRate) por voz.
+  useEffect(() => {
+    drumPlayerRefs.current.forEach((p, i) => {
+      if (p) p.playbackRate = params.drumPitch[i] ?? 1;
+    });
+  }, [params.drumPitch]);
+
+  // Decay de la envolvente por voz.
+  useEffect(() => {
+    drumEnvRefs.current.forEach((e, i) => {
+      if (e) e.decay = params.drumDecay[i] ?? 0.3;
+    });
+  }, [params.drumDecay]);
+
+  // Volumen por voz (silencio real a -40 dB).
+  useEffect(() => {
+    const now = Tone.now();
+    drumVolRefs.current.forEach((g, i) => g.gain.setValueAtTime(dbToGainMuted(params.drumVol[i] ?? 0), now));
+  }, [params.drumVol]);
+
+  // Envíos por voz hacia reverb / delay.
+  useEffect(() => {
+    const now = Tone.now();
+    drumRevSendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.drumRevSends[i] ?? 0, now));
+  }, [params.drumRevSends]);
+
+  useEffect(() => {
+    const now = Tone.now();
+    drumDelSendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.drumDelSends[i] ?? 0, now));
+  }, [params.drumDelSends]);
+
+  // Efectos propios de la batería.
+  useEffect(() => {
+    const r = drumReverbRef.current;
+    if (!r) return;
+    r.decay = params.drumReverbDecay;
+    r.generate().catch(() => {});
+  }, [params.drumReverbDecay]);
+
+  useEffect(() => {
+    drumDelayRef.current?.delayTime.setValueAtTime(params.drumDelayTime, Tone.now());
+  }, [params.drumDelayTime]);
+
+  useEffect(() => {
+    drumDelayRef.current?.feedback.setValueAtTime(params.drumDelayFeedback, Tone.now());
+  }, [params.drumDelayFeedback]);
+
   // --- API imperativa para tocar notas (baja latencia) ---
   const setNote = useCallback((note: string, time?: number) => {
     const freq = Tone.Frequency(note).toFrequency();
@@ -836,6 +997,30 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     seqVelRef.current?.setValueAtTime(value, time ?? Tone.now());
   }, []);
 
+  // Dispara una voz de batería: abre su envolvente (decay) y reproduce el sample con su
+  // pitch. La envolvente moldea la cola; el sample suele durar poco.
+  const triggerDrum = useCallback((voice: number, time?: number, velocity = 1) => {
+    if (Tone.context.state !== 'running') Tone.start();
+    const player = drumPlayerRefs.current[voice];
+    const env = drumEnvRefs.current[voice];
+    if (!player || !env || !player.loaded) return;
+    const t = time ?? Tone.now();
+    env.triggerAttack(t, velocity);
+    player.start(t);
+  }, []);
+
+  // Carga un sample (URL del kit o File subido por el usuario) en una voz.
+  const loadDrumSample = useCallback(async (voice: number, src: string | File) => {
+    const player = drumPlayerRefs.current[voice];
+    if (!player) return;
+    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+    try {
+      await player.load(url);
+    } finally {
+      if (typeof src !== 'string') URL.revokeObjectURL(url);
+    }
+  }, []);
+
   return useMemo(
     () => ({
       envAttack,
@@ -845,9 +1030,11 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       setSeqCv2,
       setSeqCv3,
       setSeqVel,
+      triggerDrum,
+      loadDrumSample,
       waveformAnalyser: waveformRef,
       fftAnalyser: fftRef,
     }),
-    [envAttack, envRelease, setNote, setSeqCv, setSeqCv2, setSeqCv3, setSeqVel],
+    [envAttack, envRelease, setNote, setSeqCv, setSeqCv2, setSeqCv3, setSeqVel, triggerDrum, loadDrumSample],
   );
 }

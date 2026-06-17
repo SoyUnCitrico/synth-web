@@ -53,6 +53,12 @@ export interface CvStep {
   gateLen: number;
 }
 
+/** Paso de un secuenciador de trigger de batería: sólo dispara (gate) con su velocidad. */
+export interface DrumStep {
+  gate: boolean;
+  velocity: number;
+}
+
 /** Rango de pitch de un paso (semitonos): C1 → C6. */
 export const PITCH_RANGE = 60; // 5 octavas (C1..C6)
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import type { GateSourceId } from '../cv/gates';
+import { DRUM_VOICES } from '../drums/kit';
 import { Sequencer } from './Sequencer';
 import {
   BASE_CLOCK,
@@ -9,6 +10,7 @@ import {
   type SeqConfig,
   type PitchStep,
   type CvStep,
+  type DrumStep,
 } from './types';
 
 interface UseSequencerOptions {
@@ -31,11 +33,17 @@ interface UseSequencerOptions {
   setSeqCv3: (value: number, time: number) => void;
   /** Escribe el CV de la velocidad (Vel) del secuenciador 1. */
   setSeqVel: (value: number, time: number) => void;
+  // --- Batería: un secuenciador de trigger por voz, sobre el mismo transporte. ---
+  drumConfigs: SeqConfig[];
+  drumSteps: DrumStep[][]; // [voz][paso]
+  triggerDrum: (voice: number, time: number, velocity: number) => void;
 }
 
 interface UseSequencerResult {
-  /** Paso actual de cada secuenciador (-1 = detenido), para el resaltado de la UI. */
+  /** Paso actual de cada secuenciador melódico (-1 = detenido). */
   currentSteps: number[];
+  /** Paso actual de cada voz de batería (-1 = detenido). */
+  drumCurrentSteps: number[];
   reset: () => void;
 }
 
@@ -50,6 +58,7 @@ const GATE_SOURCES: GateSourceId[] = ['seq1', 'seq2', 'seq3', 'seq4'];
  */
 export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
   const seqsRef = useRef<Sequencer[]>([]);
+  const drumSeqsRef = useRef<Sequencer[]>([]);
   // Estado vivo leído dentro de los callbacks sin reconstruir los secuenciadores.
   const dataRef = useRef(opts);
   dataRef.current = opts;
@@ -57,11 +66,21 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
   const [currentSteps, setCurrentSteps] = useState<number[]>(() =>
     Array.from({ length: SEQ_COUNT }, () => -1),
   );
+  const [drumCurrentSteps, setDrumCurrentSteps] = useState<number[]>(() =>
+    Array.from({ length: DRUM_VOICES }, () => -1),
+  );
 
   const setStep = useCallback((seq: number, index: number) => {
     setCurrentSteps((prev) => {
       const next = prev.slice();
       next[seq] = index;
+      return next;
+    });
+  }, []);
+  const setDrumStep = useCallback((voice: number, index: number) => {
+    setDrumCurrentSteps((prev) => {
+      const next = prev.slice();
+      next[voice] = index;
       return next;
     });
   }, []);
@@ -123,8 +142,27 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
       ),
     );
     seqsRef.current = seqs;
-    return () => seqs.forEach((s) => s.dispose());
-  }, [setStep]);
+
+    // Secuenciadores de trigger de batería (uno por voz), sobre el mismo transporte.
+    const drumSeqs = Array.from({ length: DRUM_VOICES }, (_, voice) =>
+      new Sequencer(
+        () => dataRef.current.drumConfigs[voice]?.clock ?? BASE_CLOCK,
+        () => dataRef.current.drumConfigs[voice]?.steps ?? 0,
+        () => dataRef.current.drumConfigs[voice]?.direction ?? 'forward',
+        (index, time) => {
+          const step = dataRef.current.drumSteps[voice]?.[index];
+          if (step?.gate) dataRef.current.triggerDrum(voice, time, step.velocity);
+          Tone.getDraw().schedule(() => setDrumStep(voice, index), time);
+        },
+      ),
+    );
+    drumSeqsRef.current = drumSeqs;
+
+    return () => {
+      seqs.forEach((s) => s.dispose());
+      drumSeqs.forEach((s) => s.dispose());
+    };
+  }, [setStep, setDrumStep]);
 
   // Tempo (compartido por todos los secuenciadores).
   useEffect(() => {
@@ -136,13 +174,30 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
     const seqs = seqsRef.current;
     const transport = Tone.getTransport();
     if (opts.running) {
-      Tone.start();
-      seqs.forEach((s) => s.start());
-      if (transport.state !== 'started') transport.start();
+      // Tone.start() es ASÍNCRONO: reanuda el AudioContext. Hay que esperar a que el
+      // contexto esté corriendo antes de arrancar el transporte; si no, transport.start()
+      // marca "started" pero el reloj no avanza (el secuenciador no se mueve).
+      let cancelled = false;
+      const arrancar = () => {
+        if (cancelled) return;
+        seqsRef.current.forEach((s) => s.start());
+        drumSeqsRef.current.forEach((s) => s.start());
+        if (transport.state !== 'started') transport.start();
+      };
+      if (Tone.getContext().state === 'running') {
+        arrancar();
+      } else {
+        Tone.start().then(arrancar);
+      }
+      return () => {
+        cancelled = true;
+      };
     } else {
       transport.stop();
       seqs.forEach((s) => s.stop());
+      drumSeqsRef.current.forEach((s) => s.stop());
       setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
+      setDrumCurrentSteps(Array.from({ length: DRUM_VOICES }, () => -1));
       // Soltar las compuertas que pudieran quedar abiertas (si no, la envolvente queda en
       // sustain y el VCA sigue sonando tras parar).
       const now = Tone.now();
@@ -152,18 +207,22 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
 
   // Cambio de reloj en marcha: reagenda los secuenciadores afectados (seq 1 es fijo).
   const clockKey = opts.configs.map((c) => c.clock).join('|');
+  const drumClockKey = opts.drumConfigs.map((c) => c.clock).join('|');
   useEffect(() => {
     if (!opts.running) return;
     seqsRef.current.forEach((s, i) => {
       if (i > 0) s.reschedule();
     });
+    drumSeqsRef.current.forEach((s) => s.reschedule());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clockKey]);
+  }, [clockKey, drumClockKey]);
 
   const reset = useCallback(() => {
     seqsRef.current.forEach((s) => s.reset());
+    drumSeqsRef.current.forEach((s) => s.reset());
     setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
+    setDrumCurrentSteps(Array.from({ length: DRUM_VOICES }, () => -1));
   }, []);
 
-  return { currentSteps, reset };
+  return { currentSteps, drumCurrentSteps, reset };
 }

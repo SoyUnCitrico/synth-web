@@ -13,8 +13,10 @@ import Reverb from '../components/Reverb/Reverb';
 import Delay from '../components/Delay/Delay';
 import PatchMatrix from '../components/PatchMatrix/PatchMatrix';
 import Sequencer from '../components/Sequencer/Sequencer';
+import Drums from '../components/Drums/Drums';
 import Keyboard from '../components/Keyboard/Keyboard';
 import { ALL_KEYS } from '../components/Keyboard/layout';
+import { DRUM_VOICES } from '../audio/drums/kit';
 import { useSynthEngine, type NoiseType, type Vcf2Type, type Vcf2Source } from '../audio/useSynthEngine';
 import { createPatch, type ModPatch } from '../audio/cv/patch';
 import {
@@ -34,6 +36,7 @@ import {
   type SeqConfig,
   type PitchStep,
   type CvStep,
+  type DrumStep,
 } from '../audio/sequencer/types';
 import { usePersistentState, PERSIST_KEYS } from '../hooks/usePersistentState';
 import Presets from '../components/Presets/Presets';
@@ -205,6 +208,44 @@ const BasicSynth: React.FC = () => {
     Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.8 })),
   );
 
+  // Batería: 4 voces de sample, cada una con pitch/decay/volumen/envíos y su secuenciador
+  // de triggers (config + pasos por voz). Comparte transporte/BPM con los demás.
+  const [drumPitch, setDrumPitch] = usePersistentState<number[]>(PERSIST_KEYS.drumPitch, () => Array(DRUM_VOICES).fill(1));
+  const [drumDecay, setDrumDecay] = usePersistentState<number[]>(PERSIST_KEYS.drumDecay, () => Array(DRUM_VOICES).fill(0.3));
+  const [drumVol, setDrumVol] = usePersistentState<number[]>(PERSIST_KEYS.drumVol, () => Array(DRUM_VOICES).fill(0));
+  const [drumRevSends, setDrumRevSends] = usePersistentState<number[]>(PERSIST_KEYS.drumRevSends, () => Array(DRUM_VOICES).fill(0));
+  const [drumDelSends, setDrumDelSends] = usePersistentState<number[]>(PERSIST_KEYS.drumDelSends, () => Array(DRUM_VOICES).fill(0));
+  const [drumConfigs, setDrumConfigs] = usePersistentState<SeqConfig[]>(PERSIST_KEYS.drumConfigs, () =>
+    Array.from({ length: DRUM_VOICES }, () => ({ steps: 16, direction: 'forward' as const, clock: BASE_CLOCK })),
+  );
+  const [drumSteps, setDrumSteps] = usePersistentState<DrumStep[][]>(PERSIST_KEYS.drumSteps, () =>
+    Array.from({ length: DRUM_VOICES }, () =>
+      Array.from({ length: MAX_STEPS }, () => ({ gate: false, velocity: 1 })),
+    ),
+  );
+  // Efectos propios de la batería (independientes de los del sinte).
+  const [drumReverbDecay, setDrumReverbDecay] = usePersistentState<number>(PERSIST_KEYS.drumReverbDecay, 1.5);
+  const [drumDelayTime, setDrumDelayTime] = usePersistentState<number>(PERSIST_KEYS.drumDelayTime, 0.2);
+  const [drumDelayFeedback, setDrumDelayFeedback] = usePersistentState<number>(PERSIST_KEYS.drumDelayFeedback, 0.3);
+
+  // Handlers por índice/voz (identidad estable; los setters de usePersistentState lo son).
+  const setDrumPitchAt = useCallback((i: number, v: number) => setDrumPitch((p) => p.map((x, idx) => (idx === i ? v : x))), [setDrumPitch]);
+  const setDrumDecayAt = useCallback((i: number, v: number) => setDrumDecay((p) => p.map((x, idx) => (idx === i ? v : x))), [setDrumDecay]);
+  const setDrumVolAt = useCallback((i: number, v: number) => setDrumVol((p) => p.map((x, idx) => (idx === i ? v : x))), [setDrumVol]);
+  const setDrumRevSendAt = useCallback((i: number, v: number) => setDrumRevSends((p) => p.map((x, idx) => (idx === i ? v : x))), [setDrumRevSends]);
+  const setDrumDelSendAt = useCallback((i: number, v: number) => setDrumDelSends((p) => p.map((x, idx) => (idx === i ? v : x))), [setDrumDelSends]);
+  const setDrumConfigAt = useCallback(
+    (i: number, patch: Partial<SeqConfig>) => setDrumConfigs((p) => p.map((c, idx) => (idx === i ? { ...c, ...patch } : c))),
+    [setDrumConfigs],
+  );
+  const toggleDrumStep = useCallback(
+    (voice: number, step: number) =>
+      setDrumSteps((prev) =>
+        prev.map((lane, v) => (v === voice ? lane.map((s, i) => (i === step ? { ...s, gate: !s.gate } : s)) : lane)),
+      ),
+    [setDrumSteps],
+  );
+
   // Motor de audio: construye el grafo de Tone.js una sola vez y sincroniza
   // estos parámetros con sus nodos sin reconstruirlo.
   const engine = useSynthEngine({
@@ -227,6 +268,8 @@ const BasicSynth: React.FC = () => {
     modPatch,
     reverbDecay, reverbWet,
     delayTime, delayFeedback,
+    drumPitch, drumDecay, drumVol, drumRevSends, drumDelSends,
+    drumReverbDecay, drumDelayTime, drumDelayFeedback,
   });
 
   // Despachador de gates: dado un evento de una fuente, dispara las envolventes conectadas
@@ -257,7 +300,7 @@ const BasicSynth: React.FC = () => {
   );
 
   // Orquestación de los 4 secuenciadores (disparan a través del despachador de gates).
-  const { currentSteps, reset: resetSequencer } = useSequencer({
+  const { currentSteps, drumCurrentSteps, reset: resetSequencer } = useSequencer({
     running: seqRunning,
     bpm: seqBpm,
     configs: seqConfigs,
@@ -271,6 +314,9 @@ const BasicSynth: React.FC = () => {
     setSeqCv2: engine.setSeqCv2,
     setSeqCv3: engine.setSeqCv3,
     setSeqVel: engine.setSeqVel,
+    drumConfigs,
+    drumSteps,
+    triggerDrum: engine.triggerDrum,
   });
 
   // El reset del secuenciador vive aquí; lo registramos en el transporte para que el botón
@@ -305,6 +351,8 @@ const BasicSynth: React.FC = () => {
       reverbDecay, reverbWet, delayTime, delayFeedback,
       modPatch, gatePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps,
+      drumPitch, drumDecay, drumVol, drumRevSends, drumDelSends, drumConfigs, drumSteps,
+      drumReverbDecay, drumDelayTime, drumDelayFeedback,
     }),
     [
       oscType, frequency, pwm1,
@@ -325,6 +373,8 @@ const BasicSynth: React.FC = () => {
       reverbDecay, reverbWet, delayTime, delayFeedback,
       modPatch, gatePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps,
+      drumPitch, drumDecay, drumVol, drumRevSends, drumDelSends, drumConfigs, drumSteps,
+      drumReverbDecay, drumDelayTime, drumDelayFeedback,
     ],
   );
 
@@ -398,6 +448,16 @@ const BasicSynth: React.FC = () => {
       if (s.cvSteps) setCvSteps(s.cvSteps);
       if (s.cv2Steps) setCv2Steps(s.cv2Steps);
       if (s.cv3Steps) setCv3Steps(s.cv3Steps);
+      if (s.drumPitch) setDrumPitch(s.drumPitch);
+      if (s.drumDecay) setDrumDecay(s.drumDecay);
+      if (s.drumVol) setDrumVol(s.drumVol);
+      if (s.drumRevSends) setDrumRevSends(s.drumRevSends);
+      if (s.drumDelSends) setDrumDelSends(s.drumDelSends);
+      if (s.drumConfigs) setDrumConfigs(s.drumConfigs);
+      if (s.drumSteps) setDrumSteps(s.drumSteps);
+      if (s.drumReverbDecay !== undefined) setDrumReverbDecay(s.drumReverbDecay);
+      if (s.drumDelayTime !== undefined) setDrumDelayTime(s.drumDelayTime);
+      if (s.drumDelayFeedback !== undefined) setDrumDelayFeedback(s.drumDelayFeedback);
     },
     // Los setters de useState/usePersistentState tienen identidad estable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -753,6 +813,31 @@ const BasicSynth: React.FC = () => {
           cv3Steps={cv3Steps}
           setCv3Steps={setCv3Steps}
           currentSteps={currentSteps}
+        />
+
+        <Drums
+          pitch={drumPitch}
+          setPitch={setDrumPitchAt}
+          decay={drumDecay}
+          setDecay={setDrumDecayAt}
+          vol={drumVol}
+          setVol={setDrumVolAt}
+          revSends={drumRevSends}
+          setRevSend={setDrumRevSendAt}
+          delSends={drumDelSends}
+          setDelSend={setDrumDelSendAt}
+          configs={drumConfigs}
+          setConfig={setDrumConfigAt}
+          steps={drumSteps}
+          toggleStep={toggleDrumStep}
+          currentSteps={drumCurrentSteps}
+          onLoadSample={(voice, file) => { void engine.loadDrumSample(voice, file); }}
+          reverbDecay={drumReverbDecay}
+          setReverbDecay={setDrumReverbDecay}
+          delayTime={drumDelayTime}
+          setDelayTime={setDrumDelayTime}
+          delayFeedback={drumDelayFeedback}
+          setDelayFeedback={setDrumDelayFeedback}
         />
 
 

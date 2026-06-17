@@ -68,6 +68,7 @@
 .dahd-module      { --accent: #6bd0ff;       --glow: rgba(107, 208, 255, 0.45); }
 .reverb-module    { --accent: #36e0c8;       --glow: rgba(54, 224, 200, 0.45); }
 .delay-module     { --accent: #7dd3fc;       --glow: rgba(125, 211, 252, 0.45); }
+.drums-module     { --accent: #ffd166;        --glow: rgba(255, 209, 102, 0.45); }
 
 /* ─────────────────────────────────────────────────────────────
    Fila de generadores de envolvente (ADSR · AD 1 · AD 2 · DAHD):

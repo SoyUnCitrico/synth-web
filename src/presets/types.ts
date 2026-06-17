@@ -2,7 +2,7 @@ import type * as Tone from 'tone';
 import type { ModPatch } from '../audio/cv/patch';
 import type { GatePatch } from '../audio/cv/gates';
 import type { NoiseType, Vcf2Type, Vcf2Source } from '../audio/useSynthEngine';
-import type { SeqConfig, PitchStep, CvStep } from '../audio/sequencer/types';
+import type { SeqConfig, PitchStep, CvStep, DrumStep } from '../audio/sequencer/types';
 
 /**
  * Snapshot del estado guardable del sinte.
@@ -96,6 +96,17 @@ export interface PresetState {
   cvSteps: CvStep[];
   cv2Steps: CvStep[];
   cv3Steps: CvStep[];
+  // --- Batería (no incluye los buffers de sample del usuario) ---
+  drumPitch: number[];
+  drumDecay: number[];
+  drumVol: number[];
+  drumRevSends: number[];
+  drumDelSends: number[];
+  drumConfigs: SeqConfig[];
+  drumSteps: DrumStep[][];
+  drumReverbDecay: number;
+  drumDelayTime: number;
+  drumDelayFeedback: number;
 }
 
 export interface Preset {
