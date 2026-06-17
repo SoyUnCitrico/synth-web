@@ -17,8 +17,11 @@ export type ModSourceId =
   | 'lfo2'
   | 'ad1'
   | 'ad2'
+  | 'dahd'
   | 'seqCv'
   | 'seqCv2'
+  | 'seqCv3'
+  | 'seqVel'
   | 'random';
 
 // Destinos: cualquier AudioParam modulable del grafo.
@@ -28,6 +31,7 @@ export type ModDestId =
   | 'osc3Detune'
   | 'filterFreq'
   | 'filterQ'
+  | 'vcf2Freq'
   | 'vcaGain'
   | 'osc1Level'
   | 'osc2Level'

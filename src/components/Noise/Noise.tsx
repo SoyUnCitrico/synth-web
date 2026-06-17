@@ -1,5 +1,7 @@
 import React from 'react';
 import type { NoiseType } from '../../audio/useSynthEngine';
+import Knob from '../Knob/Knob';
+import { AUDIO_FREQ_SCALE } from '../../utils/scale';
 import './Noise.css';
 
 interface NoiseProps {
@@ -47,11 +49,10 @@ const Noise: React.FC<NoiseProps> = ({
           <span className="toggle-label">{enabled ? 'ON' : 'OFF'}</span>
         </div>
       </div>
-
-      <div className={`module-controls ${!enabled ? 'disabled' : ''}`}>
-        <div className="control-group">
+      <div className={`module-controls row ${!enabled ? 'disabled' : ''}`}>
+        <div className="control-group noise-group">
           <label>Tipo</label>
-          <div className={`checkbox-group ${!enabled ? 'disabled' : ''}`}>
+          <div className={`checkbox-group vertical ${!enabled ? 'disabled' : ''}`}>
             {NOISE_TYPES.map((type) => (
               <label key={type.value} className="checkbox-option">
                 <input
@@ -77,18 +78,16 @@ const Noise: React.FC<NoiseProps> = ({
             />
             Filtro pasabanda
           </label>
-          <input
-            type="range"
-            id="noise-filter-freq"
-            min="20"
-            max="20000"
-            step="1"
+          {/* Perilla con escala logarítmica (20 Hz – 20 kHz) para el centro del pasabanda. */}
+          <Knob
+            label="Centro"
             value={filterFreq}
-            onChange={(e) => setFilterFreq(parseFloat(e.target.value))}
-            className="control-slider"
+            scale={AUDIO_FREQ_SCALE}
+            step={1}
+            display={`${filterFreq.toFixed(0)} Hz`}
+            onChange={setFilterFreq}
             disabled={!enabled || !filterEnabled}
           />
-          <span className="noise-filter-value">{filterFreq.toFixed(0)} Hz</span>
         </div>
       </div>
     </div>

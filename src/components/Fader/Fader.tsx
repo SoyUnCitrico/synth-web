@@ -9,16 +9,17 @@ interface FaderProps {
   step: number;
   display: string; // valor ya formateado para mostrar
   onChange: (value: number) => void;
+  isMaster?: boolean; // para estilos específicos del master
 }
 
 // Fader vertical reutilizable (banco de deslizadores ADSR / mixer).
-const Fader: React.FC<FaderProps> = ({ id, label, value, min, max, step, display, onChange }) => (
-  <div className="fader">
-    <span className="fader-name">{label}</span>
+const Fader: React.FC<FaderProps> = ({ id, label, value, min, max, step, display, onChange, isMaster = false }) => (
+  <div className={`fader `}>
+    <span className={`fader-name ${isMaster ? 'master' : ''}`}>{label}</span>
     <input
       type="range"
       id={id}
-      className="control-slider vertical"
+      className={`control-slider vertical ${isMaster ? 'master' : ''}`}
       min={min}
       max={max}
       step={step}

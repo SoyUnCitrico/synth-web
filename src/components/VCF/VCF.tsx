@@ -1,4 +1,6 @@
 import React from 'react';
+import Knob from '../Knob/Knob';
+import { AUDIO_FREQ_SCALE } from '../../utils/scale';
 import './VCF.css';
 
 // Definir los tipos de filtro que soportamos
@@ -32,11 +34,6 @@ export const VCF: React.FC<VCFProps> = ({
   // Manejador para cambiar la frecuencia del filtro
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFrequency(parseFloat(e.target.value));
-  };
-  
-  // Manejador para cambiar la resonancia del filtro
-  const handleResonanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setResonance(parseFloat(e.target.value));
   };
 
   // Función para crear la curva de respuesta del filtro (visualización)
@@ -100,16 +97,8 @@ export const VCF: React.FC<VCFProps> = ({
     return points;
   };
 
-  // Calcular el valor logarítmico para la visualización de la frecuencia
-  const logFrequencyScale = (frequency: number) => {
-    const minFreq = Math.log10(20);
-    const maxFreq = Math.log10(20000);
-    const logFreq = Math.log10(frequency);
-    return (logFreq - minFreq) / (maxFreq - minFreq);
-  };
-
-  // Visualización de la posición del filtro en el espectro
-  const filterPosition = logFrequencyScale(frequency) * 100;
+  // Visualización de la posición del filtro en el espectro (misma escala log que la perilla).
+  const filterPosition = AUDIO_FREQ_SCALE.toPosition(frequency) * 100;
 
   return (
     <div 
@@ -158,37 +147,36 @@ export const VCF: React.FC<VCFProps> = ({
         </div>
         
         <div className="control-group">
-          <label htmlFor="filter-freq">Frecuencia: {frequency.toFixed(0)} Hz</label>
-          <input 
-              type="number"           
-              value={frequency}
-              onChange={handleFrequencyChange}
-              className="control-input"
-            />
-          <input 
-            type="range" 
-            id="filter-freq" 
-            min="20" 
-            max="20000" 
-            step="1" 
+          <label htmlFor="filter-freq">Frecuencia de corte (log)</label>
+          <input
+            type="number"
+            id="filter-freq"
             value={frequency}
             onChange={handleFrequencyChange}
-            className="control-slider"
+            className="control-input"
           />
-        </div>
-        
-        <div className="control-group">
-          <label htmlFor="filter-res">Resonancia: {resonance.toFixed(1)}</label>
-          <input 
-            type="range" 
-            id="filter-res" 
-            min="0.1" 
-            max="20" 
-            step="0.1" 
-            value={resonance}
-            onChange={handleResonanceChange}
-            className="control-slider"
-          />
+          {/* Perilla con escala logarítmica en el rango auditivo (20 Hz – 20 kHz). */}
+          <div style={{ display: 'flex', gap: '4rem', alignItems: 'center', margin: 'auto' }}>
+            <Knob
+              label="Cutoff"
+              value={frequency}
+              scale={AUDIO_FREQ_SCALE}
+              step={1}
+              display={`${frequency.toFixed(0)} Hz`}
+              onChange={setFrequency}
+            />
+            {/* <label htmlFor="filter-res">Resonancia</label> */}
+            <Knob
+              id="filter-res"
+              label="Res"
+              value={resonance}
+              min={0.1}
+              max={20}
+              step={0.1}
+              display={resonance.toFixed(1)}
+              onChange={setResonance}
+            />
+            </div>
         </div>
       </div>
     </div>

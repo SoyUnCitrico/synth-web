@@ -1,0 +1,59 @@
+/* Pantalla de matriz de LEDs alfanumérica. Color/resplandor desde tokens (--led-display);
+   `tone` sobre-escribe ese color por display. */
+.led-display-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.led-display-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.led-display {
+  --led: var(--led-display);
+  --led-glow: var(--led-display-glow);
+  position: relative;
+  overflow: hidden;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #000;
+  border-radius: 4px;
+  /* Panel hundido y oscuro: los LEDs apagados casi no se ven. */
+  background:
+    radial-gradient(120% 130% at 50% 0%, #0a0d10 0%, #05080b 70%, #02050a 100%);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9), inset 0 0 10px rgba(0, 0, 0, 0.7);
+}
+
+.led-display-text {
+  position: relative;
+  z-index: 0;
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  line-height: 1.2;
+  white-space: pre; /* respeta el relleno de espacios (chars) */
+  color: var(--led);
+  text-shadow: 0 0 6px var(--led-glow), 0 0 12px var(--led-glow);
+}
+
+/* Rejilla de puntos superpuesta: oscurece la malla entre "LEDs" para el look dot-matrix. */
+.led-display::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: radial-gradient(circle, transparent 0 0.9px, rgba(2, 5, 10, 0.55) 1px);
+  background-size: 3px 3px;
+}
+
+/* Variantes de color de fósforo. */
+.led-display.led-amber { --led: var(--led-amber);  --led-glow: rgba(255, 180, 58, 0.7); }
+.led-display.led-green { --led: var(--led-green);  --led-glow: rgba(61, 255, 149, 0.7); }
+.led-display.led-cyan  { --led: var(--cyan);       --led-glow: rgba(25, 229, 255, 0.7); }
+.led-display.led-red   { --led: var(--led-red);    --led-glow: rgba(255, 77, 87, 0.7); }

@@ -1,8 +1,8 @@
 import type * as Tone from 'tone';
 import type { ModPatch } from '../audio/cv/patch';
 import type { GatePatch } from '../audio/cv/gates';
-import type { NoiseType } from '../audio/useSynthEngine';
-import type { SeqChannels, SeqDirection, PitchStep, CvStep } from '../audio/sequencer/types';
+import type { NoiseType, Vcf2Type, Vcf2Source } from '../audio/useSynthEngine';
+import type { SeqConfig, PitchStep, CvStep } from '../audio/sequencer/types';
 
 /**
  * Snapshot del estado guardable del sinte.
@@ -38,10 +38,21 @@ export interface PresetState {
   mixOsc2: number;
   mixOsc3: number;
   mixNoise: number;
+  channelMute: boolean[];
+  channelSolo: boolean[];
+  reverbSends: number[];
+  delaySends: number[];
+  reverbSendEnabled: boolean;
+  delaySendEnabled: boolean;
   // --- Filtro ---
   filterType: BiquadFilterType;
   filterFreq: number;
   filterRes: number;
+  // --- VCF 2 (insert por voz) ---
+  vcf2Type: Vcf2Type;
+  vcf2Freq: number;
+  vcf2Res: number;
+  vcf2Source: Vcf2Source;
   // --- Envolventes AD (modulación) ---
   ad1Attack: number;
   ad1Decay: number;
@@ -49,11 +60,18 @@ export interface PresetState {
   ad2Attack: number;
   ad2Decay: number;
   ad2Amount: number;
+  // --- Envolvente DAHD (modulación) ---
+  dahdDelay: number;
+  dahdAttack: number;
+  dahdHold: number;
+  dahdDecay: number;
+  dahdAmount: number;
   // --- ADSR (amplitud) ---
   attack: number;
   decay: number;
   sustain: number;
   release: number;
+  adsrAmount: number;
   // --- Volumen maestro ---
   volume: number;
   // --- LFO 1 / LFO 2 ---
@@ -63,20 +81,21 @@ export interface PresetState {
   lfo2Type: Tone.ToneOscillatorType;
   lfo2Rate: number;
   lfo2Depth: number;
-  // --- Reverb ---
+  // --- Reverb / Delay (envíos) ---
   reverbDecay: number;
   reverbWet: number;
+  delayTime: number;
+  delayFeedback: number;
   // --- Matriz de modulación ---
   modPatch: ModPatch;
   gatePatch: GatePatch;
-  // --- Secuenciador ---
-  seqChannels: SeqChannels;
-  seqSteps: number;
-  seqDirection: SeqDirection;
+  // --- Secuenciador (4 secuenciadores independientes) ---
+  seqConfigs: SeqConfig[];
   seqBpm: number;
   pitchSteps: PitchStep[];
   cvSteps: CvStep[];
   cv2Steps: CvStep[];
+  cv3Steps: CvStep[];
 }
 
 export interface Preset {

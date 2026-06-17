@@ -3,9 +3,10 @@ import * as Tone from 'tone';
 import type { GateSourceId } from '../cv/gates';
 import { Sequencer } from './Sequencer';
 import {
+  BASE_CLOCK,
+  SEQ_COUNT,
   SEQ_ROOT,
-  type SeqChannels,
-  type SeqDirection,
+  type SeqConfig,
   type PitchStep,
   type CvStep,
 } from './types';
@@ -13,130 +14,156 @@ import {
 interface UseSequencerOptions {
   running: boolean;
   bpm: number;
-  channels: SeqChannels;
-  steps: number;
-  direction: SeqDirection;
+  /** Configuración (pasos/dirección/reloj) de cada uno de los SEQ_COUNT secuenciadores. */
+  configs: SeqConfig[];
+  /** Datos de paso: seq 1 = pitch; seq 2-4 = CV. */
   pitchSteps: PitchStep[];
   cvSteps: CvStep[];
   cv2Steps: CvStep[];
+  cv3Steps: CvStep[];
   /** Ataque de una fuente de gate (nota opcional para fijar pitch; velocity 0..1). */
   fireAttack: (source: GateSourceId, note: string | undefined, time: number, velocity: number) => void;
   /** Libera la compuerta de una fuente de gate (puede agendarse en el futuro). */
   fireRelease: (source: GateSourceId, time: number) => void;
-  /** Escribe la fuente de CV del secuenciador (canal 2). */
+  /** Escribe las fuentes de CV de los secuenciadores 2, 3 y 4. */
   setSeqCv: (value: number, time: number) => void;
-  /** Escribe la fuente de CV del secuenciador (canal 3). */
   setSeqCv2: (value: number, time: number) => void;
+  setSeqCv3: (value: number, time: number) => void;
+  /** Escribe el CV de la velocidad (Vel) del secuenciador 1. */
+  setSeqVel: (value: number, time: number) => void;
 }
 
 interface UseSequencerResult {
-  currentStep: number;
+  /** Paso actual de cada secuenciador (-1 = detenido), para el resaltado de la UI. */
+  currentSteps: number[];
   reset: () => void;
 }
 
+// Fuentes de gate por índice de secuenciador (seq 1..4).
+const GATE_SOURCES: GateSourceId[] = ['seq1', 'seq2', 'seq3', 'seq4'];
+
 /**
- * Orquesta el secuenciador y lo conecta al despachador de gates del motor. Canal 1
- * (seq1) fija el pitch y dispara/suelta según el paso; canal 2 (seq2) escribe el CV y
- * dispara su gate. La longitud de gate agenda el release dentro del paso (staccato).
+ * Orquesta los SEQ_COUNT secuenciadores y los conecta al despachador de gates del motor.
+ * El secuenciador 1 (base, reloj fijo) fija el pitch; los 2-4 escriben su CV y corren a su
+ * divisor/multiplicador de reloj relativo al primero. El hook controla el arranque/parada
+ * del transporte una sola vez; cada Sequencer sólo agenda su propio paso.
  */
 export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
-  const seqRef = useRef<Sequencer | null>(null);
-  // Estado vivo leído dentro del callback de cada paso sin reconstruir el secuenciador.
+  const seqsRef = useRef<Sequencer[]>([]);
+  // Estado vivo leído dentro de los callbacks sin reconstruir los secuenciadores.
   const dataRef = useRef(opts);
   dataRef.current = opts;
 
-  const [currentStep, setCurrentStep] = useState<number>(-1);
+  const [currentSteps, setCurrentSteps] = useState<number[]>(() =>
+    Array.from({ length: SEQ_COUNT }, () => -1),
+  );
 
-  // Construir una sola vez.
-  useEffect(() => {
-    const seq = new Sequencer(
-      () => dataRef.current.steps,
-      () => dataRef.current.direction,
-      (index, time) => {
-        const { channels, pitchSteps, cvSteps, cv2Steps, fireAttack, fireRelease, setSeqCv, setSeqCv2 } =
-          dataRef.current;
-        const stepDur = Tone.Time('16n').toSeconds();
-        // Fracción del paso que dura la compuerta (tope 0.95 para no solapar con el ataque
-        // del siguiente paso).
-        const gateOff = (gateLen: number) => time + Math.min(gateLen, 0.95) * stepDur;
-
-        // Canal 1 (seq1): pitch + gate.
-        const s1 = pitchSteps[index];
-        if (s1) {
-          if (s1.gate) {
-            const note = Tone.Frequency(SEQ_ROOT).transpose(s1.offset).toNote();
-            fireAttack('seq1', note, time, s1.velocity);
-            fireRelease('seq1', gateOff(s1.gateLen));
-          } else {
-            fireRelease('seq1', time);
-          }
-        }
-
-        // Canal 2 (seq2, con 2 o 3 canales): CV continuo + gate (sin pitch). Sin control de
-        // velocidad: la compuerta abre a pico completo.
-        if (channels >= 2) {
-          const s2 = cvSteps[index];
-          if (s2) {
-            setSeqCv(s2.value, time);
-            if (s2.gate) {
-              fireAttack('seq2', undefined, time, 1);
-              fireRelease('seq2', gateOff(s2.gateLen));
-            } else {
-              fireRelease('seq2', time);
-            }
-          }
-        }
-
-        // Canal 3 (seq3, sólo con 3 canales): segundo CV continuo + gate (sin pitch ni vel).
-        if (channels === 3) {
-          const s3 = cv2Steps[index];
-          if (s3) {
-            setSeqCv2(s3.value, time);
-            if (s3.gate) {
-              fireAttack('seq3', undefined, time, 1);
-              fireRelease('seq3', gateOff(s3.gateLen));
-            } else {
-              fireRelease('seq3', time);
-            }
-          }
-        }
-
-        // Resaltado visual sincronizado al tiempo de audio.
-        Tone.getDraw().schedule(() => setCurrentStep(index), time);
-      },
-    );
-    seqRef.current = seq;
-    return () => seq.dispose();
+  const setStep = useCallback((seq: number, index: number) => {
+    setCurrentSteps((prev) => {
+      const next = prev.slice();
+      next[seq] = index;
+      return next;
+    });
   }, []);
 
-  // Tempo.
+  // Construir los secuenciadores una sola vez.
   useEffect(() => {
-    seqRef.current?.setBpm(opts.bpm);
+    const cvSetters = [
+      undefined, // seq 1 = pitch, sin CV
+      (v: number, t: number) => dataRef.current.setSeqCv(v, t),
+      (v: number, t: number) => dataRef.current.setSeqCv2(v, t),
+      (v: number, t: number) => dataRef.current.setSeqCv3(v, t),
+    ];
+    const stepData = [
+      () => dataRef.current.pitchSteps,
+      () => dataRef.current.cvSteps,
+      () => dataRef.current.cv2Steps,
+      () => dataRef.current.cv3Steps,
+    ];
+
+    const seqs = Array.from({ length: SEQ_COUNT }, (_, seq) =>
+      new Sequencer(
+        // El seq 1 usa el reloj base; los demás su subdivisión configurada.
+        () => (seq === 0 ? BASE_CLOCK : dataRef.current.configs[seq]?.clock ?? BASE_CLOCK),
+        () => dataRef.current.configs[seq]?.steps ?? 0,
+        () => dataRef.current.configs[seq]?.direction ?? 'forward',
+        (index, time) => {
+          const source = GATE_SOURCES[seq];
+          const stepDur = Tone.Time('16n').toSeconds();
+          const gateOff = (gateLen: number) => time + Math.min(gateLen, 0.95) * stepDur;
+          const s = stepData[seq]()[index];
+          if (!s) return;
+
+          if (seq === 0) {
+            // Pitch + gate. La Vel del paso también sale como CV (fuente de la matriz).
+            const ps = s as PitchStep;
+            dataRef.current.setSeqVel(ps.velocity, time);
+            if (ps.gate) {
+              const note = Tone.Frequency(SEQ_ROOT).transpose(ps.offset).toNote();
+              dataRef.current.fireAttack(source, note, time, ps.velocity);
+              dataRef.current.fireRelease(source, gateOff(ps.gateLen));
+            } else {
+              dataRef.current.fireRelease(source, time);
+            }
+          } else {
+            // CV continuo + gate (sin pitch ni velocidad: pico completo).
+            const cs = s as CvStep;
+            cvSetters[seq]!(cs.value, time);
+            if (cs.gate) {
+              dataRef.current.fireAttack(source, undefined, time, 1);
+              dataRef.current.fireRelease(source, gateOff(cs.gateLen));
+            } else {
+              dataRef.current.fireRelease(source, time);
+            }
+          }
+
+          // Resaltado visual sincronizado al tiempo de audio.
+          Tone.getDraw().schedule(() => setStep(seq, index), time);
+        },
+      ),
+    );
+    seqsRef.current = seqs;
+    return () => seqs.forEach((s) => s.dispose());
+  }, [setStep]);
+
+  // Tempo (compartido por todos los secuenciadores).
+  useEffect(() => {
+    Tone.getTransport().bpm.value = opts.bpm;
   }, [opts.bpm]);
 
   // Arranque/parada. El clic de Play es el gesto que permite reanudar el AudioContext.
   useEffect(() => {
-    const seq = seqRef.current;
-    if (!seq) return;
+    const seqs = seqsRef.current;
+    const transport = Tone.getTransport();
     if (opts.running) {
       Tone.start();
-      seq.start();
+      seqs.forEach((s) => s.start());
+      if (transport.state !== 'started') transport.start();
     } else {
-      seq.stop();
-      setCurrentStep(-1);
-      // Soltar las compuertas que el secuenciador pudiera dejar abiertas (sin esto, la
-      // envolvente queda en sustain y el VCA sigue sonando tras parar).
+      transport.stop();
+      seqs.forEach((s) => s.stop());
+      setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
+      // Soltar las compuertas que pudieran quedar abiertas (si no, la envolvente queda en
+      // sustain y el VCA sigue sonando tras parar).
       const now = Tone.now();
-      dataRef.current.fireRelease('seq1', now);
-      dataRef.current.fireRelease('seq2', now);
-      dataRef.current.fireRelease('seq3', now);
+      GATE_SOURCES.forEach((src) => dataRef.current.fireRelease(src, now));
     }
   }, [opts.running]);
 
+  // Cambio de reloj en marcha: reagenda los secuenciadores afectados (seq 1 es fijo).
+  const clockKey = opts.configs.map((c) => c.clock).join('|');
+  useEffect(() => {
+    if (!opts.running) return;
+    seqsRef.current.forEach((s, i) => {
+      if (i > 0) s.reschedule();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockKey]);
+
   const reset = useCallback(() => {
-    seqRef.current?.reset();
-    setCurrentStep(-1);
+    seqsRef.current.forEach((s) => s.reset());
+    setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
   }, []);
 
-  return { currentStep, reset };
+  return { currentSteps, reset };
 }

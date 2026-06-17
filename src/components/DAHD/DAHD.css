@@ -1,0 +1,10 @@
+/* Env DAHD - pantalla CRT compartida con el resto de displays */
+.dahd-svg {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  /* el trazado usa stroke="currentColor" */
+  color: #6bd0ff;
+  stroke: #6bd0ff;
+  filter: drop-shadow(0 0 4px rgba(107, 208, 255, 0.8));
+}

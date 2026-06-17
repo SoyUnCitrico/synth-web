@@ -11,13 +11,16 @@ interface ADSRProps {
   setSustain: (value: number) => void;
   release: number;
   setRelease: (value: number) => void;
+  amount: number; // cantidad/AMT de la fuente ADSR en la matriz (-1.2 a 1.2)
+  setAmount: (value: number) => void;
 }
 
 export const ADSR: React.FC<ADSRProps> = ({
   attack, setAttack,
   decay, setDecay,
   sustain, setSustain,
-  release, setRelease
+  release, setRelease,
+  amount, setAmount
 }) => {
   // Crear gráfico de la envolvente ADSR
   const createEnvelopePath = () => {
@@ -69,6 +72,10 @@ export const ADSR: React.FC<ADSRProps> = ({
           <Fader
             id="release" label="Rel" min={0.01} max={4} step={0.01}
             value={release} display={`${release.toFixed(2)}s`} onChange={setRelease}
+          />
+          <Fader
+            id="adsr-amount" label="Amt" min={-1.2} max={1.2} step={0.01}
+            value={amount} display={`${(amount * 100).toFixed(0)}%`} onChange={setAmount}
           />
         </div>
       </div>

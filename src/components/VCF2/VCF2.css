@@ -1,0 +1,9 @@
+/* VCF 2: perillas en fila y patch de routeo (checkboxes). */
+.vcf2-knobs {
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+}
+.vcf2-patch {
+  gap: 1rem;
+}

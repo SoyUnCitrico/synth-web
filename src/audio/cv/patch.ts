@@ -19,14 +19,19 @@ export interface PatchDest {
   label: string;
 }
 
+// Orden de las filas: primero las envolventes (ADSR, DAHD, AD 1, AD 2) y después el resto
+// (LFOs y CV/Vel de los secuenciadores).
 export const MOD_SOURCES: PatchSource[] = [
   { id: 'adsr', label: 'ADSR' },
-  { id: 'lfo1', label: 'LFO 1' },
-  { id: 'lfo2', label: 'LFO 2' },
+  { id: 'dahd', label: 'DAHD' },
   { id: 'ad1', label: 'AD 1' },
   { id: 'ad2', label: 'AD 2' },
+  { id: 'lfo1', label: 'LFO 1' },
+  { id: 'lfo2', label: 'LFO 2' },
+  { id: 'seqVel', label: 'Seq1 Vel' },
   { id: 'seqCv', label: 'Seq2 CV' },
   { id: 'seqCv2', label: 'Seq3 CV' },
+  { id: 'seqCv3', label: 'Seq4 CV' },
 ];
 
 export const MOD_DESTS: PatchDest[] = [
@@ -35,6 +40,7 @@ export const MOD_DESTS: PatchDest[] = [
   { id: 'osc3Detune', label: 'VCO 3' },
   { id: 'filterFreq', label: 'Cutoff' },
   { id: 'filterQ', label: 'Reson.' },
+  { id: 'vcf2Freq', label: 'Cutoff 2' },
   { id: 'vcaGain', label: 'VCA' },
   { id: 'osc1Level', label: 'Vol 1' },
   { id: 'osc2Level', label: 'Vol 2' },

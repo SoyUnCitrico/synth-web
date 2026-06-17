@@ -1,5 +1,7 @@
 import React from 'react';
 import * as Tone from 'tone';
+import Knob from '../Knob/Knob';
+import { OSC_FREQ_SCALE } from '../../utils/scale';
 import './VCO.css';
 
 interface VCOProps {
@@ -138,22 +140,22 @@ const VCO: React.FC<VCOProps> = ({
 
         {!isSecondary && (
           <div className="control-group">
-            <label htmlFor="frequency">Frecuencia: {frequency.toFixed(0)} Hz</label>
-            <input 
-              type="number"           
+            <label htmlFor="frequency">Frecuencia (log)</label>
+            <input
+              type="number"
+              id="frequency"
               value={frequency}
               onChange={handleFrequencyChange}
               className="control-input"
             />
-            <input 
-              type="range" 
-              id="frequency" 
-              min="20" 
-              max="2000" 
-              step="1" 
+            {/* Perilla con escala logarítmica: más recorrido en graves, menos en agudos. */}
+            <Knob
+              label="Freq"
               value={frequency}
-              onChange={handleFrequencyChange}
-              className="control-slider"
+              scale={OSC_FREQ_SCALE}
+              step={1}
+              display={`${frequency.toFixed(0)} Hz`}
+              onChange={setFrequency}
             />
           </div>
         )}

@@ -1,4 +1,5 @@
 import React from 'react';
+import Fader from '../Fader/Fader';
 
 interface ReverbProps {
   decay: number; // segundos
@@ -14,34 +15,16 @@ const Reverb: React.FC<ReverbProps> = ({ decay, setDecay, wet, setWet }) => {
       <div className="module-header">
         <h2>Reverb</h2>
       </div>
-      <div className="module-controls">
-        <div className="control-group">
-          <label htmlFor="reverb-decay">Decay: {decay.toFixed(2)}s</label>
-          <input
-            type="range"
-            id="reverb-decay"
-            min="0.1"
-            max="10"
-            step="0.1"
-            value={decay}
-            onChange={(e) => setDecay(parseFloat(e.target.value))}
-            className="control-slider"
-          />
-        </div>
-
-        <div className="control-group">
-          <label htmlFor="reverb-wet">Mezcla: {(wet * 100).toFixed(0)}%</label>
-          <input
-            type="range"
-            id="reverb-wet"
-            min="0"
-            max="1"
-            step="0.01"
-            value={wet}
-            onChange={(e) => setWet(parseFloat(e.target.value))}
-            className="control-slider"
-          />
-        </div>
+      <div className="module-controls row">
+        <Fader 
+          id="reverb-decay-fader" label="Decay" min={0.1} max={10} step={0.1}
+          value={decay} display={`${decay.toFixed(2)}s`} onChange={setDecay}
+        />
+        <Fader 
+          id="reverb-wet-fader" label="Wet" min={0} max={1} step={0.01}
+          value={wet} display={`${(wet * 100).toFixed(0)}%`} onChange={setWet}
+        />  
+       
       </div>
     </div>
   );

@@ -1,12 +1,14 @@
 import React from 'react';
 import * as Tone from 'tone';
+import Knob from '../Knob/Knob';
+import { LFO_RATE_SCALE } from '../../utils/scale';
 
 interface LFOProps {
   lfoType: Tone.ToneOscillatorType;
   setLfoType: (type: Tone.ToneOscillatorType) => void;
   rate: number; // Hz
   setRate: (rate: number) => void;
-  depth: number; // 0 a 1
+  depth: number; // -1 a 1 (bipolar: ± = sube/baja desde el valor base)
   setDepth: (depth: number) => void;
   label?: string;
   id?: string;
@@ -50,25 +52,26 @@ const LFO: React.FC<LFOProps> = ({
         </div>
 
         <div className="control-group">
-          <label htmlFor={`${id}-rate`}>Velocidad: {rate.toFixed(2)} Hz</label>
-          <input
-            type="range"
+          <label htmlFor={`${id}-rate`}>Velocidad (log)</label>
+          {/* Perilla con escala logarítmica: más resolución en velocidades lentas. */}
+          <Knob
             id={`${id}-rate`}
-            min="0.1"
-            max="20"
-            step="0.1"
+            label="Rate"
             value={rate}
-            onChange={(e) => setRate(parseFloat(e.target.value))}
-            className="control-slider"
+            scale={LFO_RATE_SCALE}
+            step={0.01}
+            display={`${rate.toFixed(2)} Hz`}
+            onChange={setRate}
           />
         </div>
 
         <div className="control-group">
+          {/* Profundidad bipolar: -100% (resta del base) … +100% (suma al base). */}
           <label htmlFor={`${id}-depth`}>Profundidad: {(depth * 100).toFixed(0)}%</label>
           <input
             type="range"
             id={`${id}-depth`}
-            min="0"
+            min="-1"
             max="1"
             step="0.01"
             value={depth}

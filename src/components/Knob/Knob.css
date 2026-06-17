@@ -1,0 +1,72 @@
+/* Perilla giratoria. Usa el --accent/--glow del módulo contenedor para el indicador y el
+   halo, igual que los faders. */
+.knob-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  user-select: none;
+}
+.knob-wrap.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: saturate(0.4);
+}
+.knob-name {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.knob-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--amber-soft);
+  text-shadow: 0 0 6px var(--glow, rgba(255, 180, 92, 0.4));
+}
+
+.knob {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: ns-resize;
+  /* Metal torneado con bisel: canto claro arriba, hueco oscuro al centro. */
+  background:
+    radial-gradient(circle at 50% 32%, #2c3744 0%, #1a222c 46%, #0c1116 72%),
+    linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
+  border: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -6px 12px rgba(0, 0, 0, 0.6),
+    0 3px 6px rgba(0, 0, 0, 0.55);
+  touch-action: none; /* el arrastre lo maneja el pointer, no el scroll */
+}
+.knob:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 1px var(--accent, var(--cyan)),
+    0 0 12px var(--glow, rgba(25, 229, 255, 0.45));
+}
+
+/* Disco que rota; sólo se anima su transform. */
+.knob-dial {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+/* Marca indicadora luminosa que apunta al valor. */
+.knob-indicator {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 3px;
+  height: 14px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--accent, var(--cyan));
+  box-shadow: 0 0 7px var(--glow, rgba(25, 229, 255, 0.7));
+}

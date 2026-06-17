@@ -2,8 +2,9 @@ import React from 'react';
 import {
   PITCH_RANGE,
   SEQ_ROOT_MIDI,
-  STEP_OPTIONS,
-  type SeqChannels,
+  MAX_STEPS,
+  CLOCK_OPTIONS,
+  type SeqConfig,
   type SeqDirection,
   type PitchStep,
   type CvStep,
@@ -11,12 +12,8 @@ import {
 import './Sequencer.css';
 
 interface SequencerProps {
-  channels: SeqChannels;
-  setChannels: (channels: SeqChannels) => void;
-  steps: number;
-  setSteps: (steps: number) => void;
-  direction: SeqDirection;
-  setDirection: (direction: SeqDirection) => void;
+  configs: SeqConfig[];
+  setConfigs: React.Dispatch<React.SetStateAction<SeqConfig[]>>;
   bpm: number;
   setBpm: (bpm: number) => void;
   running: boolean;
@@ -28,7 +25,9 @@ interface SequencerProps {
   setCvSteps: React.Dispatch<React.SetStateAction<CvStep[]>>;
   cv2Steps: CvStep[];
   setCv2Steps: React.Dispatch<React.SetStateAction<CvStep[]>>;
-  currentStep: number;
+  cv3Steps: CvStep[];
+  setCv3Steps: React.Dispatch<React.SetStateAction<CvStep[]>>;
+  currentSteps: number[];
 }
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -106,13 +105,67 @@ const GateLane: React.FC<{
   </div>
 );
 
+// Controles por secuenciador: nº de pasos (slider 0-32), dirección y reloj (los seq 2-4
+// con divisor/multiplicador relativo al seq 1, que es la base).
+const SeqControls: React.FC<{
+  index: number;
+  config: SeqConfig;
+  onChange: (patch: Partial<SeqConfig>) => void;
+}> = ({ index, config, onChange }) => (
+  <div className="seq-config">
+    <div className="control-group seq-steps-ctl">
+      <label htmlFor={`seq-${index}-steps`}>Pasos: {config.steps}</label>
+      <input
+        type="range"
+        id={`seq-${index}-steps`}
+        min={0}
+        max={MAX_STEPS}
+        step={1}
+        value={config.steps}
+        onChange={(e) => onChange({ steps: parseInt(e.target.value, 10) })}
+        className="control-slider"
+      />
+    </div>
+    <div className="control-group">
+      <label htmlFor={`seq-${index}-dir`}>Dirección</label>
+      <select
+        id={`seq-${index}-dir`}
+        className="control-select"
+        value={config.direction}
+        onChange={(e) => onChange({ direction: e.target.value as SeqDirection })}
+      >
+        {DIRECTIONS.map((d) => (
+          <option key={d.value} value={d.value}>
+            {d.label}
+          </option>
+        ))}
+      </select>
+    </div>
+    <div className="control-group">
+      <label htmlFor={`seq-${index}-clock`}>Reloj</label>
+      {index === 0 ? (
+        <span className="seq-clock-base">×1 · base</span>
+      ) : (
+        <select
+          id={`seq-${index}-clock`}
+          className="control-select"
+          value={config.clock}
+          onChange={(e) => onChange({ clock: e.target.value })}
+        >
+          {CLOCK_OPTIONS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  </div>
+);
+
 const Sequencer: React.FC<SequencerProps> = ({
-  channels,
-  setChannels,
-  steps,
-  setSteps,
-  direction,
-  setDirection,
+  configs,
+  setConfigs,
   bpm,
   setBpm,
   running,
@@ -124,14 +177,24 @@ const Sequencer: React.FC<SequencerProps> = ({
   setCvSteps,
   cv2Steps,
   setCv2Steps,
-  currentStep,
+  cv3Steps,
+  setCv3Steps,
+  currentSteps,
 }) => {
+  const updateConfig = (i: number, patch: Partial<SeqConfig>) =>
+    setConfigs((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+
   const updatePitch = (i: number, patch: Partial<PitchStep>) =>
     setPitchSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
-  const updateCv = (i: number, patch: Partial<CvStep>) =>
-    setCvSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
-  const updateCv2 = (i: number, patch: Partial<CvStep>) =>
-    setCv2Steps((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+
+  // Editores de los tres secuenciadores de CV (2, 3, 4).
+  const cvData = [
+    { steps: cvSteps, setSteps: setCvSteps },
+    { steps: cv2Steps, setSteps: setCv2Steps },
+    { steps: cv3Steps, setSteps: setCv3Steps },
+  ];
+  const updateCv = (which: number, i: number, patch: Partial<CvStep>) =>
+    cvData[which].setSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
 
   return (
     <div className="module sequencer-module">
@@ -153,49 +216,6 @@ const Sequencer: React.FC<SequencerProps> = ({
       <div className="module-controls">
         <div className="seq-toolbar">
           <div className="control-group">
-            <label htmlFor="seq-channels">Canales</label>
-            <select
-              id="seq-channels"
-              className="control-select"
-              value={channels}
-              onChange={(e) => setChannels(parseInt(e.target.value, 10) as SeqChannels)}
-            >
-              <option value={1}>1 canal</option>
-              <option value={2}>2 canales</option>
-              <option value={3}>3 canales</option>
-            </select>
-          </div>
-          <div className="control-group">
-            <label htmlFor="seq-steps">Pasos</label>
-            <select
-              id="seq-steps"
-              className="control-select"
-              value={steps}
-              onChange={(e) => setSteps(parseInt(e.target.value, 10))}
-            >
-              {STEP_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="control-group">
-            <label htmlFor="seq-dir">Dirección</label>
-            <select
-              id="seq-dir"
-              className="control-select"
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as SeqDirection)}
-            >
-              {DIRECTIONS.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="control-group">
             <label htmlFor="seq-bpm">Tempo: {bpm} BPM</label>
             <input
               type="range"
@@ -210,14 +230,15 @@ const Sequencer: React.FC<SequencerProps> = ({
           </div>
         </div>
 
-        {/* Canal 1: pitch */}
+        {/* Secuenciador 1: pitch (reloj base). */}
         <div className="seq-channel">
-          <span className="seq-channel-title">Canal 1 · Pitch</span>
+          <span className="seq-channel-title">Seq 1 · Pitch (base)</span>
+          <SeqControls index={0} config={configs[0]} onChange={(p) => updateConfig(0, p)} />
           <SliderLane
             label="Nota"
             values={pitchSteps.map((s) => s.offset)}
-            count={steps}
-            currentStep={currentStep}
+            count={configs[0].steps}
+            currentStep={currentSteps[0]}
             min={0}
             max={PITCH_RANGE}
             step={1}
@@ -228,8 +249,8 @@ const Sequencer: React.FC<SequencerProps> = ({
           <SliderLane
             label="Vel"
             values={pitchSteps.map((s) => s.velocity)}
-            count={steps}
-            currentStep={currentStep}
+            count={configs[0].steps}
+            currentStep={currentSteps[0]}
             min={0}
             max={1}
             step={0.01}
@@ -238,8 +259,8 @@ const Sequencer: React.FC<SequencerProps> = ({
           <SliderLane
             label="Gate"
             values={pitchSteps.map((s) => s.gateLen)}
-            count={steps}
-            currentStep={currentStep}
+            count={configs[0].steps}
+            currentStep={currentSteps[0]}
             min={0.05}
             max={1}
             step={0.01}
@@ -248,83 +269,55 @@ const Sequencer: React.FC<SequencerProps> = ({
           <GateLane
             label="On"
             gates={pitchSteps.map((s) => s.gate)}
-            count={steps}
-            currentStep={currentStep}
+            count={configs[0].steps}
+            currentStep={currentSteps[0]}
             onToggle={(i) => updatePitch(i, { gate: !pitchSteps[i].gate })}
           />
         </div>
 
-        {/* Canal 2: CV + gate (con 2 o 3 canales) → fuentes "Seq2 CV" / "Sec. 2". Sin Vel. */}
-        {channels >= 2 && (
-          <div className="seq-channel">
-            <span className="seq-channel-title">Canal 2 · CV</span>
-            <SliderLane
-              label="CV"
-              values={cvSteps.map((s) => s.value)}
-              count={steps}
-              currentStep={currentStep}
-              min={0}
-              max={1}
-              step={0.01}
-              tall
-              valueLabel={(v) => `${(v * 100).toFixed(0)}`}
-              onChange={(i, v) => updateCv(i, { value: v })}
-            />
-            <SliderLane
-              label="Gate"
-              values={cvSteps.map((s) => s.gateLen)}
-              count={steps}
-              currentStep={currentStep}
-              min={0.05}
-              max={1}
-              step={0.01}
-              onChange={(i, v) => updateCv(i, { gateLen: v })}
-            />
-            <GateLane
-              label="On"
-              gates={cvSteps.map((s) => s.gate)}
-              count={steps}
-              currentStep={currentStep}
-              onToggle={(i) => updateCv(i, { gate: !cvSteps[i].gate })}
-            />
-          </div>
-        )}
-
-        {/* Canal 3: segundo CV + gate (sólo con 3 canales) → fuentes "Seq3 CV" / "Sec. 3". Sin Vel. */}
-        {channels === 3 && (
-          <div className="seq-channel">
-            <span className="seq-channel-title">Canal 3 · CV</span>
-            <SliderLane
-              label="CV"
-              values={cv2Steps.map((s) => s.value)}
-              count={steps}
-              currentStep={currentStep}
-              min={0}
-              max={1}
-              step={0.01}
-              tall
-              valueLabel={(v) => `${(v * 100).toFixed(0)}`}
-              onChange={(i, v) => updateCv2(i, { value: v })}
-            />
-            <SliderLane
-              label="Gate"
-              values={cv2Steps.map((s) => s.gateLen)}
-              count={steps}
-              currentStep={currentStep}
-              min={0.05}
-              max={1}
-              step={0.01}
-              onChange={(i, v) => updateCv2(i, { gateLen: v })}
-            />
-            <GateLane
-              label="On"
-              gates={cv2Steps.map((s) => s.gate)}
-              count={steps}
-              currentStep={currentStep}
-              onToggle={(i) => updateCv2(i, { gate: !cv2Steps[i].gate })}
-            />
-          </div>
-        )}
+        {/* Secuenciadores 2-4: CV + gate. Sin Vel. */}
+        {cvData.map((cv, which) => {
+          const seqIndex = which + 1;
+          return (
+            <div className="seq-channel" key={seqIndex}>
+              <span className="seq-channel-title">{`Seq ${seqIndex + 1} · CV`}</span>
+              <SeqControls
+                index={seqIndex}
+                config={configs[seqIndex]}
+                onChange={(p) => updateConfig(seqIndex, p)}
+              />
+              <SliderLane
+                label="CV"
+                values={cv.steps.map((s) => s.value)}
+                count={configs[seqIndex].steps}
+                currentStep={currentSteps[seqIndex]}
+                min={0}
+                max={1}
+                step={0.01}
+                tall
+                valueLabel={(v) => `${(v * 100).toFixed(0)}`}
+                onChange={(i, v) => updateCv(which, i, { value: v })}
+              />
+              <SliderLane
+                label="Gate"
+                values={cv.steps.map((s) => s.gateLen)}
+                count={configs[seqIndex].steps}
+                currentStep={currentSteps[seqIndex]}
+                min={0.05}
+                max={1}
+                step={0.01}
+                onChange={(i, v) => updateCv(which, i, { gateLen: v })}
+              />
+              <GateLane
+                label="On"
+                gates={cv.steps.map((s) => s.gate)}
+                count={configs[seqIndex].steps}
+                currentStep={currentSteps[seqIndex]}
+                onToggle={(i) => updateCv(which, i, { gate: !cv.steps[i].gate })}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

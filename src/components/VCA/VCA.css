@@ -43,6 +43,87 @@
   color: var(--ink-dim);
 }
 
+/* Tiras de canal del mixer: fader + mute/solo. */
+.mixer-strips {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.9rem;
+  padding: 0.4rem 0 0.2rem;
+}
+.mixer-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mixer-ms {
+  display: flex;
+  gap: 0.3rem;
+}
+/* Botones M (mute) / S (solo): luminosos al activarse. */
+.ms-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--ink-dim);
+  background: #0c1116;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.ms-btn input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.ms-btn.mute.on {
+  color: #04080b;
+  background: var(--led-red);
+  border-color: var(--led-red);
+  box-shadow: 0 0 8px rgba(255, 77, 87, 0.7);
+}
+.ms-btn.solo.on {
+  color: #04100c;
+  background: var(--led-green);
+  border-color: var(--led-green);
+  box-shadow: 0 0 8px rgba(61, 255, 149, 0.7);
+}
+
+/* Columnas de envío (Reverb / Delay): activación + una perilla por canal. */
+.send-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+}
+
+.send-row:last-child {
+  border-top: 1px solid var(--line);
+}
+.send-enable {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.send-knobs {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
 .master-section {
   margin-top: 0.5rem;
 }
@@ -54,8 +135,9 @@
 
 .volume-meter {
   width: 26px;
-  height: 130px;
+  height: 180px;
   position: relative;
+  top: -20px;
   overflow: hidden;
   background: var(--groove);
   border: 1px solid #000;

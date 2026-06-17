@@ -57,24 +57,77 @@
     text-shadow: 0 0 10px rgba(25, 229, 255, 0.4);
 }
 
-.button-container {
+/* ── Transporte del secuenciador en el header ── */
+.transport-container {
     display: flex;
+    align-items: center;
+    gap: 0.6rem;
     margin-right: 8px;
 }
-.button-container button {
-    display: grid;
-    place-items: center;
-    margin: 4px;
-    width: 42px;
-    height: 42px;
-    color: var(--ink-dim);
-    background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
-    border: 1px solid var(--line);
+
+.hdr-btn {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    padding: 7px 12px;
     border-radius: 6px;
+    border: 1px solid #39ff95;
+    background: #0c1116;
+    color: #39ff95;
+    cursor: pointer;
     transition: all 0.2s ease;
 }
-.button-container button:hover {
-    color: var(--cyan);
-    border-color: var(--cyan);
-    box-shadow: 0 0 12px rgba(25, 229, 255, 0.45);
+.hdr-btn:hover {
+    box-shadow: 0 0 10px rgba(57, 255, 149, 0.45);
+}
+.hdr-btn-warning {
+    color: #ff4c4c;
+    border-color: #ff4c4c;
+}
+.hdr-btn-warning:hover {
+    box-shadow: 0 0 10px rgba(255, 76, 76, 0.45);
+}
+.hdr-btn-default {
+    color: var(--amber-soft);
+    border-color: var(--amber-soft);
+}
+.hdr-btn-default:hover {
+    box-shadow: 0 0 10px rgba(255, 180, 92, 0.45);
+}
+.hdr-transport.active {
+    background: #39ff95;
+    color: #04100c;
+    box-shadow: 0 0 10px rgba(57, 255, 149, 0.5);
+}
+
+.hdr-bpm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+/* LedDisplay compacto para que quepa en la altura del header. */
+.hdr-bpm .led-display {
+    padding: 0.18rem 0.45rem;
+}
+.hdr-bpm .led-display-text {
+    font-size: 0.85rem;
+    letter-spacing: 0.18em;
+}
+.hdr-bpm .led-display-label {
+    font-size: 0.58rem;
+}
+.hdr-bpm input[type="range"] {
+    width: 110px;
+    accent-color: var(--cyan);
+    cursor: pointer;
+}
+
+@media (max-width: 560px) {
+    .hdr-bpm input[type="range"] {
+        width: 70px;
+    }
+    .hdr-btn {
+        padding: 6px 8px;
+    }
 }

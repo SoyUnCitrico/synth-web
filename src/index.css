@@ -23,6 +23,12 @@
   --amber-soft: #ffb45c;
   --led-green: #3dff95;
   --led-red: #ff4d57;
+  --led-amber: #ffb43a;
+
+  /* Display de matriz de LEDs (color fósforo por defecto + su resplandor). Cambiar estos
+     dos tokens retematiza todas las pantallas LedDisplay de golpe. */
+  --led-display: var(--led-amber);
+  --led-display-glow: rgba(255, 180, 58, 0.7);
 
   --font-display: 'Orbitron', 'Arial Narrow', sans-serif;
   --font-mono: 'Share Tech Mono', ui-monospace, 'Cascadia Mono', monospace;

@@ -1,4 +1,5 @@
 import React from 'react';
+import Fader from '../Fader/Fader';
 import './FilterEnv.css';
 
 interface FilterEnvProps {
@@ -51,45 +52,18 @@ export const FilterEnv: React.FC<FilterEnvProps> = ({
           </svg>
         </div>
 
-        <div className="control-group">
-          <label htmlFor={`${id}-attack`}>Attack: {attack.toFixed(2)}s</label>
-          <input
-            type="range"
-            id={`${id}-attack`}
-            min="0.01"
-            max="2"
-            step="0.01"
-            value={attack}
-            onChange={(e) => setAttack(parseFloat(e.target.value))}
-            className="control-slider"
+        <div className="fader-bank">
+          <Fader
+            id={`${id}-attack`} label="Atk" min={0.01} max={2} step={0.01}
+            value={attack} display={`${attack.toFixed(2)}s`} onChange={setAttack}
           />
-        </div>
-
-        <div className="control-group">
-          <label htmlFor={`${id}-decay`}>Decay: {decay.toFixed(2)}s</label>
-          <input
-            type="range"
-            id={`${id}-decay`}
-            min="0.01"
-            max="3"
-            step="0.01"
-            value={decay}
-            onChange={(e) => setDecay(parseFloat(e.target.value))}
-            className="control-slider"
+          <Fader
+            id={`${id}-decay`} label="Dec" min={0.01} max={3} step={0.01}
+            value={decay} display={`${decay.toFixed(2)}s`} onChange={setDecay}
           />
-        </div>
-
-        <div className="control-group">
-          <label htmlFor={`${id}-amount`}>Cantidad: {(amount * 100).toFixed(0)}%</label>
-          <input
-            type="range"
-            id={`${id}-amount`}
-            min="-1.2"
-            max="1.2"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(parseFloat(e.target.value))}
-            className="control-slider"
+          <Fader
+            id={`${id}-amount`} label="Amt" min={-1.2} max={1.2} step={0.01}
+            value={amount} display={`${(amount * 100).toFixed(0)}%`} onChange={setAmount}
           />
         </div>
       </div>

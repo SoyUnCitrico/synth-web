@@ -9,7 +9,7 @@
  *   - 'trigger' → disparo único en note-on; ignora el note-off (las AD, sustain 0).
  */
 
-export type GateSourceId = 'keyboard' | 'seq1' | 'seq2' | 'seq3';
+export type GateSourceId = 'keyboard' | 'seq1' | 'seq2' | 'seq3' | 'seq4';
 export type GateDestId = 'amp' | 'ad1' | 'ad2' | 'dahd';
 
 export interface GateSourceCfg {
@@ -28,12 +28,14 @@ export const GATE_SOURCES: GateSourceCfg[] = [
   { id: 'seq1', label: 'Sec. 1' },
   { id: 'seq2', label: 'Sec. 2' },
   { id: 'seq3', label: 'Sec. 3' },
+  { id: 'seq4', label: 'Sec. 4' },
 ];
 
 export const GATE_DESTS: GateDestCfg[] = [
   { id: 'amp', label: 'ADSR', mode: 'gate' },
   { id: 'ad1', label: 'AD 1', mode: 'trigger' },
   { id: 'ad2', label: 'AD 2', mode: 'trigger' },
+  { id: 'dahd', label: 'DAHD', mode: 'trigger' },
 ];
 
 /** Estado de la matriz de gates: qué intersecciones (fuente→envolvente) están activas. */
