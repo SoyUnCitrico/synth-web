@@ -1,0 +1,53 @@
+/* Barra de presets: fila de controles sobre la rejilla de módulos. */
+.preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
+  border: 1px solid #000;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.preset-bar-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber-soft);
+}
+
+.preset-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.preset-name {
+  width: 9rem;
+}
+
+.preset-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--cyan);
+  background: #0c1116;
+  color: var(--cyan);
+  cursor: pointer;
+}
+.preset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preset-btn.danger {
+  border-color: #ff5a5a;
+  color: #ff7a7a;
+}
+.preset-import {
+  display: inline-flex;
+  align-items: center;
+}

@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { ModMatrix } from './cv/ModMatrix';
 import { MOD_SOURCES, MOD_DESTS, patchKey, type ModPatch } from './cv/patch';
 import type { ModSourceId } from './cv/types';
+import type { GateDestId } from './cv/gates';
 
 export type NoiseType = 'white' | 'pink' | 'brown';
 
@@ -10,6 +11,11 @@ export type NoiseType = 'white' | 'pink' | 'brown';
 // `unitPerAmount` de los destinos de la matriz: un depth de 1 produce este desvío.
 const LFO_PITCH_RANGE_CENTS = 1200; // ±1 octava
 const LFO_FILTER_RANGE_HZ = 6000; // ±6 kHz
+
+// Fondo de cualquier fader de volumen (master y canales del mixer) → silencio total.
+// A -40 dB, dbToGain(-40) ≈ 0.01 todavía sonaría (fuga), así que se fuerza la ganancia a 0.
+const VOL_MUTE_DB = -40;
+const dbToGainMuted = (db: number): number => (db <= VOL_MUTE_DB ? 0 : Tone.dbToGain(db));
 
 /**
  * Aplica la forma de onda a un OmniOscillator. La onda "cuadrada" se implementa con un
@@ -52,6 +58,8 @@ export interface SynthParams {
   // Generador de ruido
   noiseType: NoiseType;
   noiseEnabled: boolean;
+  noiseFilterEnabled: boolean; // filtro pasabanda a la salida del ruido
+  noiseFilterFreq: number; // Hz (centro del pasabanda)
   // Mixer: nivel por canal en dB
   mixOsc1: number;
   mixOsc2: number;
@@ -92,15 +100,19 @@ export interface SynthParams {
 }
 
 export interface SynthEngine {
-  /** Dispara las envolventes. Si se pasa una nota (ej. "C4") fija el pitch primero.
-   *  `time` (tiempo del AudioContext) permite agendar con precisión desde el transporte. */
-  triggerAttack: (note?: string, time?: number) => void;
-  /** Libera las envolventes (fase de release). */
-  triggerRelease: (time?: number) => void;
+  /** Ataque de UNA envolvente (amp/ad1/ad2). El ruteo fuente→envolvente lo decide la
+   *  matriz de gates; el motor sólo dispara la envolvente indicada. `time` (tiempo del
+   *  AudioContext) permite agendar con precisión desde el transporte; `velocity` (0..1)
+   *  escala el pico de la envolvente. */
+  envAttack: (dest: GateDestId, time?: number, velocity?: number) => void;
+  /** Release de UNA envolvente (usado por los destinos tipo gate, p. ej. el ADSR). */
+  envRelease: (dest: GateDestId, time?: number) => void;
   /** Cambia el pitch de los osciladores sin re-disparar la envolvente (legato). */
   setNote: (note: string, time?: number) => void;
-  /** Fija el valor de la fuente de CV del secuenciador (0..1). */
+  /** Fija el valor de la fuente de CV del secuenciador canal 2 (0..1). */
   setSeqCv: (value: number, time?: number) => void;
+  /** Fija el valor de la fuente de CV del secuenciador canal 3 (0..1). */
+  setSeqCv2: (value: number, time?: number) => void;
   /** Analizador de forma de onda (osciloscopio). */
   waveformAnalyser: React.RefObject<Tone.Analyser | null>;
   /** Analizador FFT (espectro). */
@@ -113,12 +125,14 @@ export interface SynthEngine {
  * Cadena de señal:
  *   osc1 ─> ch1 ┐
  *   osc2 ─> ch2 ┤ (mixer: una ganancia por canal)
- *   osc3 ─> ch3 ┼─> VCF ─> ADSR ─> VCA maestro ─┬─> waveform/fft Analyser
- *   ruido─> chN ┘                                └─> Reverb ─> destination
+ *   osc3 ─> ch3 ┼─> VCF ─> ganancia maestra (= VCA) ─┬─> waveform/fft Analyser
+ *   ruido─> chN ┘                                     └─> Reverb ─> destination
  *
- *   Fuentes de modulación: LFO 1, LFO 2, AD 1, AD 2 ──> ModMatrix ──> destinos
- *   (detune/cutoff/Q/VCA/nivel de ruido). El cableado lo decide modPatch (matriz de
- *   patcheo estilo VCS3). Las AD se disparan con la nota. Ver src/audio/cv/.
+ *   Envolventes de control (NO en la cadena de audio): ADSR, AD 1, AD 2 (0..1). Junto a
+ *   LFO 1/2 y el CV del secuenciador son fuentes de la ModMatrix. Destinos: detune, cutoff,
+ *   Q, niveles de canal/ruido (mixer) y VCA (= ganancia maestra). El destino VCA modula la
+ *   ganancia maestra: sin fuente la base es el volumen; con fuente, base 0 y el volumen es
+ *   el pico (por defecto adsr→vcaGain). Cableado por modPatch (matriz estilo VCS3).
  *
  * El grafo se construye una sola vez al montar; los cambios de parámetro se
  * aplican mutando los nodos existentes para minimizar latencia y evitar clics.
@@ -128,6 +142,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   const osc2Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
   const osc3Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
   const noiseRef = useRef<Tone.Noise | null>(null);
+  const noiseFilterRef = useRef<Tone.Filter | null>(null);
   // Mixer: una ganancia por canal.
   const ch1Ref = useRef<Tone.Gain | null>(null);
   const ch2Ref = useRef<Tone.Gain | null>(null);
@@ -136,12 +151,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   const lfoRef = useRef<Tone.LFO | null>(null);
   const lfo2Ref = useRef<Tone.LFO | null>(null);
   const seqCvRef = useRef<Tone.Signal<'number'> | null>(null);
+  const seqCv2Ref = useRef<Tone.Signal<'number'> | null>(null);
   const matrixRef = useRef<ModMatrix | null>(null);
   const filterRef = useRef<Tone.Filter | null>(null);
-  const envelopeRef = useRef<Tone.AmplitudeEnvelope | null>(null);
-  // Envolventes AD (fuentes de modulación de la matriz).
+  // Envolventes de control (fuentes de la matriz). El ADSR ya no va en la cadena de audio:
+  // modula el VCA (y lo que se le conecte) desde la matriz.
+  const envelopeRef = useRef<Tone.Envelope | null>(null);
   const ad1Ref = useRef<Tone.Envelope | null>(null);
   const ad2Ref = useRef<Tone.Envelope | null>(null);
+  // Ganancia maestra: hace de VCA. Sin fuente en la matriz su base es el volumen; con
+  // alguna fuente (p. ej. ADSR) su base es 0 y la fuente la abre (master = volumen pico).
   const gainRef = useRef<Tone.Gain | null>(null);
   const reverbRef = useRef<Tone.Reverb | null>(null);
   const waveformRef = useRef<Tone.Analyser | null>(null);
@@ -158,6 +177,12 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     applyWaveform(osc3, params.osc3Type, params.pwm3);
     osc3.detune.value = params.osc3Detune;
     const noise = new Tone.Noise(params.noiseType);
+    // Filtro pasabanda opcional a la salida del ruido (activable por checkbox).
+    const noiseFilter = new Tone.Filter({
+      type: 'bandpass',
+      frequency: params.noiseFilterFreq,
+      Q: 2,
+    });
 
     const ch1 = new Tone.Gain(Tone.dbToGain(params.mixOsc1));
     const ch2 = new Tone.Gain(Tone.dbToGain(params.mixOsc2));
@@ -170,12 +195,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       Q: params.filterRes,
     });
 
-    const envelope = new Tone.AmplitudeEnvelope({
+    // ADSR: envolvente de control (NO en la cadena de audio). Es una fuente de la matriz
+    // que por defecto modula el VCA.
+    const envelope = new Tone.Envelope({
       attack: params.attack,
       decay: params.decay,
       sustain: params.sustain,
       release: params.release,
     });
+    // Ganancia maestra = VCA. Base la fija el efecto de la matriz (volumen o 0 según haya
+    // fuentes conectadas a vcaGain).
     const gain = new Tone.Gain(Tone.dbToGain(params.volume));
 
     const reverb = new Tone.Reverb({
@@ -215,40 +244,52 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       release: 0.05,
     });
 
-    // Señal de CV del secuenciador (canal B). El secuenciador la actualiza por paso;
-    // la matriz la rutea a cualquier destino.
+    // Señales de CV del secuenciador (canales 2 y 3). El secuenciador las actualiza por
+    // paso; la matriz las rutea a cualquier destino.
     const seqCv = new Tone.Signal(0);
+    const seqCv2 = new Tone.Signal(0);
 
     // Ruteo. Cada fuente pasa por su canal del mixer; osc1 va siempre al filtro,
     // los demás canales los conectan sus efectos de habilitación (corren al montar).
     osc1.connect(ch1);
     osc2.connect(ch2);
     osc3.connect(ch3);
+    // El ruido va a su canal directo (bypass) o pasando por el filtro pasabanda según el
+    // checkbox; el efecto de noiseFilterEnabled hace la conmutación. El filtro siempre
+    // tiene su salida en chN.
+    noiseFilter.connect(chN);
     noise.connect(chN);
     ch1.connect(filter);
 
-    filter.chain(envelope, gain);
+    // Cadena de audio: filtro → ganancia maestra/VCA → analizadores / reverb / salida.
+    filter.connect(gain);
     gain.connect(waveform);
     gain.connect(fft);
     gain.connect(reverb);
     reverb.toDestination();
 
-    // Matriz de modulación (CV): los LFO (-1..1) y las envolventes AD (0..1) son fuentes;
+    // Matriz de modulación (CV): el ADSR y las AD (0..1) y los LFO (-1..1) son fuentes;
     // los AudioParams modulables son destinos. El cableado concreto lo fija el efecto de
     // sincronización de la matriz (desde modPatch). Ver src/audio/cv/.
     const matrix = new ModMatrix();
+    matrix.registerSource({ id: 'adsr', output: envelope, range: 'unipolar' });
     matrix.registerSource({ id: 'lfo1', output: lfo, range: 'bipolar' });
     matrix.registerSource({ id: 'lfo2', output: lfo2, range: 'bipolar' });
     matrix.registerSource({ id: 'ad1', output: ad1, range: 'unipolar' });
     matrix.registerSource({ id: 'ad2', output: ad2, range: 'unipolar' });
     matrix.registerSource({ id: 'seqCv', output: seqCv, range: 'unipolar' });
+    matrix.registerSource({ id: 'seqCv2', output: seqCv2, range: 'unipolar' });
     matrix.registerDest({ id: 'osc1Detune', param: osc1.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc2Detune', param: osc2.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc3Detune', param: osc3.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'filterFreq', param: filter.frequency, unitPerAmount: LFO_FILTER_RANGE_HZ });
     matrix.registerDest({ id: 'filterQ', param: filter.Q, unitPerAmount: 10 });
     matrix.registerDest({ id: 'vcaGain', param: gain.gain, unitPerAmount: 1 });
+    matrix.registerDest({ id: 'osc1Level', param: ch1.gain, unitPerAmount: 1 });
+    matrix.registerDest({ id: 'osc2Level', param: ch2.gain, unitPerAmount: 1 });
+    matrix.registerDest({ id: 'osc3Level', param: ch3.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'noiseLevel', param: chN.gain, unitPerAmount: 1 });
+    matrix.registerDest({ id: 'noiseFilterFreq', param: noiseFilter.frequency, unitPerAmount: LFO_FILTER_RANGE_HZ });
 
     // Las fuentes corren en continuo; la envolvente de amplitud las abre/cierra.
     osc1.start();
@@ -262,6 +303,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc2Ref.current = osc2;
     osc3Ref.current = osc3;
     noiseRef.current = noise;
+    noiseFilterRef.current = noiseFilter;
     ch1Ref.current = ch1;
     ch2Ref.current = ch2;
     ch3Ref.current = ch3;
@@ -274,6 +316,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     ad1Ref.current = ad1;
     ad2Ref.current = ad2;
     seqCvRef.current = seqCv;
+    seqCv2Ref.current = seqCv2;
     gainRef.current = gain;
     reverbRef.current = reverb;
     waveformRef.current = waveform;
@@ -284,6 +327,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       osc2.dispose();
       osc3.dispose();
       noise.dispose();
+      noiseFilter.dispose();
       ch1.dispose();
       ch2.dispose();
       ch3.dispose();
@@ -296,6 +340,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       ad1.dispose();
       ad2.dispose();
       seqCv.dispose();
+      seqCv2.dispose();
       gain.dispose();
       reverb.dispose();
       waveform.dispose();
@@ -368,21 +413,37 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     else chN.disconnect();
   }, [params.noiseEnabled]);
 
-  // Mixer: nivel por canal
+  // Filtro pasabanda del ruido: conmuta la fuente del canal entre el filtro y el bypass.
   useEffect(() => {
-    ch1Ref.current?.gain.setValueAtTime(Tone.dbToGain(params.mixOsc1), Tone.now());
+    const noise = noiseRef.current;
+    const nf = noiseFilterRef.current;
+    const chN = chNRef.current;
+    if (!noise || !nf || !chN) return;
+    noise.disconnect();
+    if (params.noiseFilterEnabled) noise.connect(nf);
+    else noise.connect(chN);
+  }, [params.noiseFilterEnabled]);
+
+  useEffect(() => {
+    noiseFilterRef.current?.frequency.setValueAtTime(params.noiseFilterFreq, Tone.now());
+  }, [params.noiseFilterFreq]);
+
+  // Mixer: nivel base por canal (silencio total en el fondo del fader). La matriz puede
+  // sumar modulación encima vía los destinos oscNLevel / noiseLevel.
+  useEffect(() => {
+    ch1Ref.current?.gain.setValueAtTime(dbToGainMuted(params.mixOsc1), Tone.now());
   }, [params.mixOsc1]);
 
   useEffect(() => {
-    ch2Ref.current?.gain.setValueAtTime(Tone.dbToGain(params.mixOsc2), Tone.now());
+    ch2Ref.current?.gain.setValueAtTime(dbToGainMuted(params.mixOsc2), Tone.now());
   }, [params.mixOsc2]);
 
   useEffect(() => {
-    ch3Ref.current?.gain.setValueAtTime(Tone.dbToGain(params.mixOsc3), Tone.now());
+    ch3Ref.current?.gain.setValueAtTime(dbToGainMuted(params.mixOsc3), Tone.now());
   }, [params.mixOsc3]);
 
   useEffect(() => {
-    chNRef.current?.gain.setValueAtTime(Tone.dbToGain(params.mixNoise), Tone.now());
+    chNRef.current?.gain.setValueAtTime(dbToGainMuted(params.mixNoise), Tone.now());
   }, [params.mixNoise]);
 
   // Filtro
@@ -420,10 +481,8 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     env.release = params.release;
   }, [params.attack, params.decay, params.sustain, params.release]);
 
-  // Amplificador maestro
-  useEffect(() => {
-    gainRef.current?.gain.setValueAtTime(Tone.dbToGain(params.volume), Tone.now());
-  }, [params.volume]);
+  // (El volumen maestro se aplica en el efecto de la matriz, porque el destino VCA modula
+  // esta misma ganancia: sin fuente la base es el volumen; con fuente, el volumen es el pico.)
 
   // LFO 1: forma de onda y velocidad
   useEffect(() => {
@@ -451,21 +510,45 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     const matrix = matrixRef.current;
     if (!matrix) return;
     const depths: Partial<Record<ModSourceId, number>> = {
+      // El ADSR (y el CV del secuenciador) traen su propia señal 0..1; depth 1 = rango
+      // completo (p. ej. ADSR→VCA abre el VCA de 0 a 1).
+      adsr: 1,
       lfo1: params.lfoDepth,
       lfo2: params.lfo2Depth,
       ad1: params.ad1Depth,
       ad2: params.ad2Depth,
-      // El CV del secuenciador ya trae su valor por paso (0..1); depth 1 = rango completo.
       seqCv: 1,
+      seqCv2: 1,
     };
+    // El destino VCA modula la ganancia maestra. Su "amount" se escala por el volumen del
+    // master, de modo que el pico de la modulación = volumen. El resto de destinos usan su
+    // depth tal cual.
+    const masterGain = dbToGainMuted(params.volume);
+    let vcaModulated = false;
     for (const src of MOD_SOURCES) {
       const depth = depths[src.id] ?? 0;
       for (const dst of MOD_DESTS) {
         const connected = params.modPatch[patchKey(src.id, dst.id)] ?? false;
-        matrix.setAmount(src.id, dst.id, connected ? depth : 0);
+        if (dst.id === 'vcaGain') {
+          matrix.setAmount(src.id, dst.id, connected ? depth * masterGain : 0);
+          if (connected) vcaModulated = true;
+        } else {
+          matrix.setAmount(src.id, dst.id, connected ? depth : 0);
+        }
       }
     }
-  }, [params.modPatch, params.lfoDepth, params.lfo2Depth, params.ad1Depth, params.ad2Depth]);
+    // Base de la ganancia maestra/VCA: sin ninguna fuente conectada a vcaGain, base = el
+    // volumen del master (pasa siempre); con alguna fuente, base 0 (la fuente abre el VCA y
+    // el volumen del master es el pico).
+    gainRef.current?.gain.setValueAtTime(vcaModulated ? 0 : masterGain, Tone.now());
+  }, [
+    params.modPatch,
+    params.lfoDepth,
+    params.lfo2Depth,
+    params.ad1Depth,
+    params.ad2Depth,
+    params.volume,
+  ]);
 
   // Reverb
   useEffect(() => {
@@ -489,39 +572,46 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc3Ref.current?.frequency.setValueAtTime(freq, t);
   }, []);
 
-  const triggerAttack = useCallback(
-    (note?: string, time?: number) => {
+  // Devuelve la envolvente correspondiente al destino de gate.
+  const envFor = useCallback((dest: GateDestId) => {
+    if (dest === 'amp') return envelopeRef.current;
+    if (dest === 'ad1') return ad1Ref.current;
+    return ad2Ref.current;
+  }, []);
+
+  const envAttack = useCallback(
+    (dest: GateDestId, time?: number, velocity?: number) => {
       if (Tone.context.state !== 'running') Tone.start();
-      const t = time ?? Tone.now();
-      if (note) setNote(note, t);
-      envelopeRef.current?.triggerAttack(t);
-      // Disparar las envolventes AD de modulación junto con la nota.
-      ad1Ref.current?.triggerAttack(t);
-      ad2Ref.current?.triggerAttack(t);
+      envFor(dest)?.triggerAttack(time ?? Tone.now(), velocity);
     },
-    [setNote],
+    [envFor],
   );
 
-  const triggerRelease = useCallback((time?: number) => {
-    const t = time ?? Tone.now();
-    envelopeRef.current?.triggerRelease(t);
-    ad1Ref.current?.triggerRelease(t);
-    ad2Ref.current?.triggerRelease(t);
-  }, []);
+  const envRelease = useCallback(
+    (dest: GateDestId, time?: number) => {
+      envFor(dest)?.triggerRelease(time ?? Tone.now());
+    },
+    [envFor],
+  );
 
   const setSeqCv = useCallback((value: number, time?: number) => {
     seqCvRef.current?.setValueAtTime(value, time ?? Tone.now());
   }, []);
 
+  const setSeqCv2 = useCallback((value: number, time?: number) => {
+    seqCv2Ref.current?.setValueAtTime(value, time ?? Tone.now());
+  }, []);
+
   return useMemo(
     () => ({
-      triggerAttack,
-      triggerRelease,
+      envAttack,
+      envRelease,
       setNote,
       setSeqCv,
+      setSeqCv2,
       waveformAnalyser: waveformRef,
       fftAnalyser: fftRef,
     }),
-    [triggerAttack, triggerRelease, setNote, setSeqCv],
+    [envAttack, envRelease, setNote, setSeqCv, setSeqCv2],
   );
 }

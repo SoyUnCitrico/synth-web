@@ -3,3 +3,8 @@
   --accent: #9fb3c8;
   --glow: rgba(159, 179, 200, 0.4);
 }
+
+.noise-filter-value {
+  font-size: 0.7rem;
+  color: var(--cyan);
+}

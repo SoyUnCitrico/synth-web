@@ -9,7 +9,7 @@ const Header : React.FC = () => {
             <div className={"header-container"}>
                 <div className={"logo-container"}>
                     <PiPianoKeysFill/>
-                    <h4>ReactSynth</h4>
+                    <h4>MAKINE</h4>
                 </div>
                 <div className={"button-container"}>
                     <button>

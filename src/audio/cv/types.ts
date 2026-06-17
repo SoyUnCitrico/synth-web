@@ -11,7 +11,15 @@ import * as Tone from 'tone';
 
 // Fuentes de modulación. Su salida es una señal de control:
 //   'bipolar'  -> -1..1   ·   'unipolar' -> 0..1
-export type ModSourceId = 'lfo1' | 'lfo2' | 'ad1' | 'ad2' | 'seqCv' | 'random';
+export type ModSourceId =
+  | 'adsr'
+  | 'lfo1'
+  | 'lfo2'
+  | 'ad1'
+  | 'ad2'
+  | 'seqCv'
+  | 'seqCv2'
+  | 'random';
 
 // Destinos: cualquier AudioParam modulable del grafo.
 export type ModDestId =
@@ -21,7 +29,11 @@ export type ModDestId =
   | 'filterFreq'
   | 'filterQ'
   | 'vcaGain'
-  | 'noiseLevel';
+  | 'osc1Level'
+  | 'osc2Level'
+  | 'osc3Level'
+  | 'noiseLevel'
+  | 'noiseFilterFreq';
 
 export interface ModSource {
   id: ModSourceId;

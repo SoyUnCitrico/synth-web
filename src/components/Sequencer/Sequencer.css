@@ -5,20 +5,46 @@
   grid-column: 1 / -1; /* ocupa todo el ancho de la rejilla de módulos */
 }
 
-.seq-transport {
+.seq-header-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 16px;
+}
+
+.seq-btn {
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.6rem;
   padding: 4px 12px;
   border-radius: 5px;
   border: 1px solid var(--accent);
   background: #0c1116;
   color: var(--accent);
   cursor: pointer;
+  width: 70px;
+}
+
+.seq-btn-warning {
+  color: #ff4c4c;
+  border-color: #ff4c4c;
 }
 .seq-transport.active {
   background: var(--accent);
   color: #04100c;
   box-shadow: 0 0 8px var(--glow);
+}
+
+.seq-channel {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.seq-channel-title {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.25rem;
 }
 
 .seq-toolbar {
@@ -32,7 +58,7 @@
 }
 
 .seq-lane {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
 }
 .seq-lane-label {
   display: block;
@@ -57,10 +83,24 @@
   border-radius: 4px;
   background: radial-gradient(circle at 50% 0%, #0c1116, #05080b);
   min-width: 26px;
+  /* Borde izquierdo reservado para los marcadores de compás. */
+  border-left: 2px solid transparent;
+}
+/* Marcador cada 4 pasos (acento suave, cian). */
+.seq-step.beat {
+  border-left-color: rgba(25, 229, 255, 0.55);
+  background: radial-gradient(circle at 50% 0%, #0d1622, #05080b);
+}
+/* Marcador cada 8 pasos (acento fuerte, ámbar). */
+.seq-step.bar {
+  border-left-color: var(--amber);
+  background: radial-gradient(circle at 50% 0%, #1c1408, #05080b);
 }
 .seq-step.playing {
-  background: radial-gradient(circle at 50% 0%, #123322, #08160f);
   box-shadow: inset 0 0 0 1px var(--accent), 0 0 8px var(--glow);
+}
+.seq-step.playing:not(.beat):not(.bar) {
+  background: radial-gradient(circle at 50% 0%, #123322, #08160f);
 }
 
 .seq-note {
@@ -71,7 +111,10 @@
 
 /* El slider vertical reutiliza .control-slider.vertical; lo acortamos para el grid. */
 .seq-step .control-slider.vertical {
-  height: 80px;
+  height: 70px;
+}
+.seq-step .control-slider.vertical.short {
+  height: 38px;
 }
 
 .seq-gate {

@@ -171,8 +171,8 @@ const VCO: React.FC<VCOProps> = ({
             <input
               type="range"
               id={`detune-${idSuffix}`}
-              min="-1200" 
-              max="1200" 
+              min="-2400" 
+              max="2400" 
               step="1" 
               value={detune}
               onChange={handleDetuneChange}

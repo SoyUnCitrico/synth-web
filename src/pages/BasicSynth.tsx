@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Tone from 'tone';
 import VCO from '../components/VCO/VCO';
 import { VCF } from '../components/VCF/VCF';
@@ -12,8 +12,25 @@ import PatchMatrix from '../components/PatchMatrix/PatchMatrix';
 import Sequencer from '../components/Sequencer/Sequencer';
 import { useSynthEngine, type NoiseType } from '../audio/useSynthEngine';
 import { createPatch, type ModPatch } from '../audio/cv/patch';
+import {
+  createGatePatch,
+  GATE_DESTS,
+  gateKey,
+  type GatePatch,
+  type GateSourceId,
+} from '../audio/cv/gates';
 import { useSequencer } from '../audio/sequencer/useSequencer';
-import type { SeqMode, PitchStep, CvStep } from '../audio/sequencer/types';
+import {
+  MAX_STEPS,
+  type SeqChannels,
+  type SeqDirection,
+  type PitchStep,
+  type CvStep,
+} from '../audio/sequencer/types';
+import { usePersistentState, PERSIST_KEYS } from '../hooks/usePersistentState';
+import Presets from '../components/Presets/Presets';
+import { usePresets } from '../presets/usePresets';
+import type { PresetState } from '../presets/types';
 import '../App.css';
 // import Oscilloscope from '../components/Oscilloscope/Oscilloscope';
 // import SpectrumAnalyzer from '../components/Spectrum/Spectrum';
@@ -62,6 +79,8 @@ const BasicSynth: React.FC = () => {
   // Generador de ruido
   const [noiseType, setNoiseType] = useState<NoiseType>('white');
   const [noiseEnabled, setNoiseEnabled] = useState<boolean>(false);
+  const [noiseFilterEnabled, setNoiseFilterEnabled] = useState<boolean>(false);
+  const [noiseFilterFreq, setNoiseFilterFreq] = useState<number>(1000);
 
   // Mixer: nivel por canal (dB)
   const [mixOsc1, setMixOsc1] = useState<number>(0);
@@ -105,21 +124,42 @@ const BasicSynth: React.FC = () => {
 
   // Matriz de patcheo (fuentes × destinos). Vacía por defecto; createPatch permite
   // declarar conexiones iniciales, p. ej. createPatch([{ source:'lfo1', dest:'filterFreq' }]).
-  const [modPatch, setModPatch] = useState<ModPatch>(() => createPatch([]));
+  // Por defecto el ADSR modula el VCA general (la nota abre el VCA).
+  const [modPatch, setModPatch] = usePersistentState<ModPatch>(PERSIST_KEYS.modPatch, () =>
+    createPatch([{ source: 'adsr', dest: 'vcaGain' }]),
+  );
+
+  // Matriz de gates/triggers (fuentes de disparo → envolventes). Por defecto el teclado y
+  // el secuenciador canal 1 abren el ADSR; las AD se disparan sólo si se conectan a mano.
+  const [gatePatch, setGatePatch] = usePersistentState<GatePatch>(PERSIST_KEYS.gatePatch, () =>
+    createGatePatch([
+      { source: 'keyboard', dest: 'amp' },
+      { source: 'seq1', dest: 'amp' },
+    ]),
+  );
 
   // Parámetros del reverb
   const [reverbDecay, setReverbDecay] = useState<number>(2);
   const [reverbWet, setReverbWet] = useState<number>(0.3);
 
-  // Secuenciador (1 canal × 32 pasos  ó  2 canales × 16: pitch + CV a la matriz)
-  const [seqMode, setSeqMode] = useState<SeqMode>('single32');
-  const [seqBpm, setSeqBpm] = useState<number>(120);
-  const [seqRunning, setSeqRunning] = useState<boolean>(false);
-  const [pitchSteps, setPitchSteps] = useState<PitchStep[]>(() =>
-    Array.from({ length: 32 }, () => ({ offset: 12, gate: true })),
+  // Secuenciador. Canales y nº de pasos son independientes (canal 2 = pitch + CV/gate).
+  // Config y pasos se persisten; `running` no (no auto-arranca al recargar).
+  const [seqChannels, setSeqChannels] = usePersistentState<SeqChannels>(PERSIST_KEYS.seqChannels, 1);
+  const [seqSteps, setSeqSteps] = usePersistentState<number>(PERSIST_KEYS.seqSteps, 16);
+  const [seqDirection, setSeqDirection] = usePersistentState<SeqDirection>(
+    PERSIST_KEYS.seqDirection,
+    'forward',
   );
-  const [cvSteps, setCvSteps] = useState<CvStep[]>(() =>
-    Array.from({ length: 16 }, () => ({ value: 0 })),
+  const [seqBpm, setSeqBpm] = usePersistentState<number>(PERSIST_KEYS.seqBpm, 120);
+  const [seqRunning, setSeqRunning] = useState<boolean>(false);
+  const [pitchSteps, setPitchSteps] = usePersistentState<PitchStep[]>(PERSIST_KEYS.pitchSteps, () =>
+    Array.from({ length: MAX_STEPS }, () => ({ offset: 12, gate: true, velocity: 1, gateLen: 0.8 })),
+  );
+  const [cvSteps, setCvSteps] = usePersistentState<CvStep[]>(PERSIST_KEYS.cvSteps, () =>
+    Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.8 })),
+  );
+  const [cv2Steps, setCv2Steps] = usePersistentState<CvStep[]>(PERSIST_KEYS.cv2Steps, () =>
+    Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.8 })),
   );
 
   // Motor de audio: construye el grafo de Tone.js una sola vez y sincroniza
@@ -128,7 +168,7 @@ const BasicSynth: React.FC = () => {
     oscType, frequency, pwm: pwm1,
     osc2Type, detune, osc2Enabled, pwm2,
     osc3Type, osc3Detune, osc3Enabled, pwm3,
-    noiseType, noiseEnabled,
+    noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
     mixOsc1, mixOsc2, mixOsc3, mixNoise,
     filterType, filterFreq, filterRes,
     ad1Attack, ad1Decay, ad1Depth: ad1Amount,
@@ -141,15 +181,162 @@ const BasicSynth: React.FC = () => {
     reverbDecay, reverbWet,
   });
 
-  // Orquestación del secuenciador (usa la API imperativa del motor).
-  const currentStep = useSequencer({
-    engine,
+  // Despachador de gates: dado un evento de una fuente, dispara las envolventes conectadas
+  // en la matriz de gates. Se lee gatePatch por ref para no recrear los callbacks.
+  const gatePatchRef = useRef(gatePatch);
+  gatePatchRef.current = gatePatch;
+
+  const fireGateAttack = useCallback(
+    (source: GateSourceId, note: string | undefined, time?: number, velocity = 1) => {
+      if (note) engine.setNote(note, time);
+      for (const dest of GATE_DESTS) {
+        if (gatePatchRef.current[gateKey(source, dest.id)]) engine.envAttack(dest.id, time, velocity);
+      }
+    },
+    [engine],
+  );
+
+  const fireGateRelease = useCallback(
+    (source: GateSourceId, time?: number) => {
+      // Sólo los destinos tipo gate (ADSR) responden al note-off; los trigger lo ignoran.
+      for (const dest of GATE_DESTS) {
+        if (dest.mode === 'gate' && gatePatchRef.current[gateKey(source, dest.id)]) {
+          engine.envRelease(dest.id, time);
+        }
+      }
+    },
+    [engine],
+  );
+
+  // Orquestación del secuenciador (dispara a través del despachador de gates).
+  const { currentStep, reset: resetSequencer } = useSequencer({
     running: seqRunning,
     bpm: seqBpm,
-    mode: seqMode,
+    channels: seqChannels,
+    steps: seqSteps,
+    direction: seqDirection,
     pitchSteps,
     cvSteps,
+    cv2Steps,
+    fireAttack: fireGateAttack,
+    fireRelease: fireGateRelease,
+    setSeqCv: engine.setSeqCv,
+    setSeqCv2: engine.setSeqCv2,
   });
+
+  // --- Presets con nombre ---
+  // captureState/applyState son el ÚNICO punto a tocar para extender los presets a más
+  // parámetros: añade el campo en PresetState y una línea en cada uno (mismo patrón).
+  const { presets, save: savePreset, remove: removePreset, get: getPreset, importMany } =
+    usePresets();
+
+  const captureState = useCallback(
+    (): PresetState => ({
+      oscType, frequency, pwm1,
+      osc2Type, detune, osc2Enabled, pwm2,
+      osc3Type, osc3Detune, osc3Enabled, pwm3,
+      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
+      mixOsc1, mixOsc2, mixOsc3, mixNoise,
+      filterType, filterFreq, filterRes,
+      ad1Attack, ad1Decay, ad1Amount,
+      ad2Attack, ad2Decay, ad2Amount,
+      attack, decay, sustain, release,
+      volume,
+      lfoType, lfoRate, lfoDepth,
+      lfo2Type, lfo2Rate, lfo2Depth,
+      reverbDecay, reverbWet,
+      modPatch, gatePatch,
+      seqChannels, seqSteps, seqDirection, seqBpm, pitchSteps, cvSteps, cv2Steps,
+    }),
+    [
+      oscType, frequency, pwm1,
+      osc2Type, detune, osc2Enabled, pwm2,
+      osc3Type, osc3Detune, osc3Enabled, pwm3,
+      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
+      mixOsc1, mixOsc2, mixOsc3, mixNoise,
+      filterType, filterFreq, filterRes,
+      ad1Attack, ad1Decay, ad1Amount,
+      ad2Attack, ad2Decay, ad2Amount,
+      attack, decay, sustain, release,
+      volume,
+      lfoType, lfoRate, lfoDepth,
+      lfo2Type, lfo2Rate, lfo2Depth,
+      reverbDecay, reverbWet,
+      modPatch, gatePatch,
+      seqChannels, seqSteps, seqDirection, seqBpm, pitchSteps, cvSteps, cv2Steps,
+    ],
+  );
+
+  // Aplica un preset. Usa `!== undefined` para no descartar valores válidos 0/false.
+  const applyState = useCallback(
+    (s: Partial<PresetState>) => {
+      if (s.oscType !== undefined) setOscType(s.oscType);
+      if (s.frequency !== undefined) setFrequency(s.frequency);
+      if (s.pwm1 !== undefined) setPwm1(s.pwm1);
+      if (s.osc2Type !== undefined) setOsc2Type(s.osc2Type);
+      if (s.detune !== undefined) setDetune(s.detune);
+      if (s.osc2Enabled !== undefined) setOsc2Enabled(s.osc2Enabled);
+      if (s.pwm2 !== undefined) setPwm2(s.pwm2);
+      if (s.osc3Type !== undefined) setOsc3Type(s.osc3Type);
+      if (s.osc3Detune !== undefined) setOsc3Detune(s.osc3Detune);
+      if (s.osc3Enabled !== undefined) setOsc3Enabled(s.osc3Enabled);
+      if (s.pwm3 !== undefined) setPwm3(s.pwm3);
+      if (s.noiseType !== undefined) setNoiseType(s.noiseType);
+      if (s.noiseEnabled !== undefined) setNoiseEnabled(s.noiseEnabled);
+      if (s.noiseFilterEnabled !== undefined) setNoiseFilterEnabled(s.noiseFilterEnabled);
+      if (s.noiseFilterFreq !== undefined) setNoiseFilterFreq(s.noiseFilterFreq);
+      if (s.mixOsc1 !== undefined) setMixOsc1(s.mixOsc1);
+      if (s.mixOsc2 !== undefined) setMixOsc2(s.mixOsc2);
+      if (s.mixOsc3 !== undefined) setMixOsc3(s.mixOsc3);
+      if (s.mixNoise !== undefined) setMixNoise(s.mixNoise);
+      if (s.filterType !== undefined) setFilterType(s.filterType);
+      if (s.filterFreq !== undefined) setFilterFreq(s.filterFreq);
+      if (s.filterRes !== undefined) setFilterRes(s.filterRes);
+      if (s.ad1Attack !== undefined) setAd1Attack(s.ad1Attack);
+      if (s.ad1Decay !== undefined) setAd1Decay(s.ad1Decay);
+      if (s.ad1Amount !== undefined) setAd1Amount(s.ad1Amount);
+      if (s.ad2Attack !== undefined) setAd2Attack(s.ad2Attack);
+      if (s.ad2Decay !== undefined) setAd2Decay(s.ad2Decay);
+      if (s.ad2Amount !== undefined) setAd2Amount(s.ad2Amount);
+      if (s.attack !== undefined) setAttack(s.attack);
+      if (s.decay !== undefined) setDecay(s.decay);
+      if (s.sustain !== undefined) setSustain(s.sustain);
+      if (s.release !== undefined) setRelease(s.release);
+      if (s.volume !== undefined) setVolume(s.volume);
+      if (s.lfoType !== undefined) setLfoType(s.lfoType);
+      if (s.lfoRate !== undefined) setLfoRate(s.lfoRate);
+      if (s.lfoDepth !== undefined) setLfoDepth(s.lfoDepth);
+      if (s.lfo2Type !== undefined) setLfo2Type(s.lfo2Type);
+      if (s.lfo2Rate !== undefined) setLfo2Rate(s.lfo2Rate);
+      if (s.lfo2Depth !== undefined) setLfo2Depth(s.lfo2Depth);
+      if (s.reverbDecay !== undefined) setReverbDecay(s.reverbDecay);
+      if (s.reverbWet !== undefined) setReverbWet(s.reverbWet);
+      if (s.modPatch) setModPatch(s.modPatch);
+      if (s.gatePatch) setGatePatch(s.gatePatch);
+      if (s.seqChannels !== undefined) setSeqChannels(s.seqChannels);
+      if (s.seqSteps !== undefined) setSeqSteps(s.seqSteps);
+      if (s.seqDirection !== undefined) setSeqDirection(s.seqDirection);
+      if (s.seqBpm !== undefined) setSeqBpm(s.seqBpm);
+      if (s.pitchSteps) setPitchSteps(s.pitchSteps);
+      if (s.cvSteps) setCvSteps(s.cvSteps);
+      if (s.cv2Steps) setCv2Steps(s.cv2Steps);
+    },
+    // Los setters de useState/usePersistentState tienen identidad estable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleSavePreset = useCallback(
+    (name: string) => savePreset(name, captureState()),
+    [savePreset, captureState],
+  );
+  const handleLoadPreset = useCallback(
+    (name: string) => {
+      const state = getPreset(name);
+      if (state) applyState(state);
+    },
+    [getPreset, applyState],
+  );
 
   // Estado de interacción (para mostrar notas activas y el estado de los botones)
   const [activeNotes, setActiveNotes] = useState<Record<string, string>>({});
@@ -194,7 +381,7 @@ const BasicSynth: React.FC = () => {
       heldNotesRef.current.push({ key, note });
 
       if (wasIdle) {
-        engine.triggerAttack(note);
+        fireGateAttack('keyboard', note);
         setIsPlaying(true);
       } else {
         // Ya hay una nota sonando: cambiar el pitch sin re-disparar (legato).
@@ -212,7 +399,7 @@ const BasicSynth: React.FC = () => {
       heldNotesRef.current.splice(idx, 1);
 
       if (heldNotesRef.current.length === 0) {
-        engine.triggerRelease();
+        fireGateRelease('keyboard');
         setIsPlaying(false);
       } else {
         // Volver a la última nota que sigue mantenida.
@@ -233,22 +420,30 @@ const BasicSynth: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [engine]);
+  }, [engine, fireGateAttack, fireGateRelease]);
 
   // Tocar/soltar con los botones del teclado en pantalla (usa la frecuencia actual).
   const playNote = () => {
-    engine.triggerAttack();
+    fireGateAttack('keyboard', undefined);
     setIsPlaying(true);
   };
 
   const stopNote = () => {
-    engine.triggerRelease();
+    fireGateRelease('keyboard');
     setIsPlaying(false);
   };
 
   return (
     <div className="synth-container">
-      <h1 className={"synthTitle"}>Synth Básico</h1>
+      <h1 className={"synthTitle"}>MAKINE</h1>
+
+      <Presets
+        presets={presets}
+        onSave={handleSavePreset}
+        onLoad={handleLoadPreset}
+        onDelete={removePreset}
+        onImport={importMany}
+      />
 
       <div className="synth-modules" ref={oscRef}>
         {/* <Oscilloscope
@@ -304,6 +499,17 @@ const BasicSynth: React.FC = () => {
           index={3}
         />
 
+        <Noise
+          noiseType={noiseType}
+          setNoiseType={setNoiseType}
+          enabled={noiseEnabled}
+          setEnabled={setNoiseEnabled}
+          filterEnabled={noiseFilterEnabled}
+          setFilterEnabled={setNoiseFilterEnabled}
+          filterFreq={noiseFilterFreq}
+          setFilterFreq={setNoiseFilterFreq}
+        />
+
         <VCF
           filterType={filterType}
           setFilterType={setFilterType}
@@ -311,6 +517,18 @@ const BasicSynth: React.FC = () => {
           setFrequency={setFilterFreq}
           resonance={filterRes}
           setResonance={setFilterRes}
+        />
+        <VCA
+          volume={volume}
+          setVolume={setVolume}
+          mixOsc1={mixOsc1}
+          setMixOsc1={setMixOsc1}
+          mixOsc2={mixOsc2}
+          setMixOsc2={setMixOsc2}
+          mixOsc3={mixOsc3}
+          setMixOsc3={setMixOsc3}
+          mixNoise={mixNoise}
+          setMixNoise={setMixNoise}
         />
 
         <ADSR
@@ -322,48 +540,6 @@ const BasicSynth: React.FC = () => {
           setSustain={setSustain}
           release={release}
           setRelease={setRelease}
-        />
-
-        <VCA
-          volume={volume}
-          setVolume={setVolume}
-          mixOsc1={mixOsc1}
-          setMixOsc1={setMixOsc1}
-          mixOsc2={mixOsc2}
-          setMixOsc2={setMixOsc2}
-          mixOsc3={mixOsc3}
-          setMixOsc3={setMixOsc3}
-        />
-
-        <Noise
-          noiseType={noiseType}
-          setNoiseType={setNoiseType}
-          enabled={noiseEnabled}
-          setEnabled={setNoiseEnabled}
-          level={mixNoise}
-          setLevel={setMixNoise}
-        />
-
-        <LFO
-          label="LFO 1"
-          id="lfo1"
-          lfoType={lfoType}
-          setLfoType={setLfoType}
-          rate={lfoRate}
-          setRate={setLfoRate}
-          depth={lfoDepth}
-          setDepth={setLfoDepth}
-        />
-
-        <LFO
-          label="LFO 2"
-          id="lfo2"
-          lfoType={lfo2Type}
-          setLfoType={setLfo2Type}
-          rate={lfo2Rate}
-          setRate={setLfo2Rate}
-          depth={lfo2Depth}
-          setDepth={setLfo2Depth}
         />
 
         <FilterEnv
@@ -387,21 +563,26 @@ const BasicSynth: React.FC = () => {
           amount={ad2Amount}
           setAmount={setAd2Amount}
         />
+        <LFO
+          label="LFO 1"
+          id="lfo1"
+          lfoType={lfoType}
+          setLfoType={setLfoType}
+          rate={lfoRate}
+          setRate={setLfoRate}
+          depth={lfoDepth}
+          setDepth={setLfoDepth}
+        />
 
-        <PatchMatrix patch={modPatch} setPatch={setModPatch} />
-
-        <Sequencer
-          mode={seqMode}
-          setMode={setSeqMode}
-          bpm={seqBpm}
-          setBpm={setSeqBpm}
-          running={seqRunning}
-          setRunning={setSeqRunning}
-          pitchSteps={pitchSteps}
-          setPitchSteps={setPitchSteps}
-          cvSteps={cvSteps}
-          setCvSteps={setCvSteps}
-          currentStep={currentStep}
+        <LFO
+          label="LFO 2"
+          id="lfo2"
+          lfoType={lfo2Type}
+          setLfoType={setLfo2Type}
+          rate={lfo2Rate}
+          setRate={setLfo2Rate}
+          depth={lfo2Depth}
+          setDepth={setLfo2Depth}
         />
 
         <Reverb
@@ -410,6 +591,36 @@ const BasicSynth: React.FC = () => {
           wet={reverbWet}
           setWet={setReverbWet}
         />
+        
+        <PatchMatrix
+          patch={modPatch}
+          setPatch={setModPatch}
+          gatePatch={gatePatch}
+          setGatePatch={setGatePatch}
+        />
+
+        <Sequencer
+          channels={seqChannels}
+          setChannels={setSeqChannels}
+          steps={seqSteps}
+          setSteps={setSeqSteps}
+          direction={seqDirection}
+          setDirection={setSeqDirection}
+          bpm={seqBpm}
+          setBpm={setSeqBpm}
+          running={seqRunning}
+          setRunning={setSeqRunning}
+          onReset={resetSequencer}
+          pitchSteps={pitchSteps}
+          setPitchSteps={setPitchSteps}
+          cvSteps={cvSteps}
+          setCvSteps={setCvSteps}
+          cv2Steps={cv2Steps}
+          setCv2Steps={setCv2Steps}
+          currentStep={currentStep}
+        />
+
+
       </div>
 
      <div className="keyboard-controls">

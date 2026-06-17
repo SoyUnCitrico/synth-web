@@ -4,10 +4,29 @@
   --glow: rgba(57, 255, 149, 0.45);
 }
 
+.patch-section + .patch-section {
+  margin-top: 1rem;
+}
+
+.patch-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber-soft);
+  margin: 0 0 0.35rem;
+}
+
 .patch-matrix {
   border-collapse: collapse;
   margin: 0 auto;
   font-size: 0.7rem;
+}
+
+.patch-dest-sub {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 400;
+  opacity: 0.7;
 }
 
 .patch-matrix th,

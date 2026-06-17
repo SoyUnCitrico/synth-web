@@ -20,11 +20,13 @@ export interface PatchDest {
 }
 
 export const MOD_SOURCES: PatchSource[] = [
+  { id: 'adsr', label: 'ADSR' },
   { id: 'lfo1', label: 'LFO 1' },
   { id: 'lfo2', label: 'LFO 2' },
   { id: 'ad1', label: 'AD 1' },
   { id: 'ad2', label: 'AD 2' },
-  { id: 'seqCv', label: 'Seq CV' },
+  { id: 'seqCv', label: 'Seq2 CV' },
+  { id: 'seqCv2', label: 'Seq3 CV' },
 ];
 
 export const MOD_DESTS: PatchDest[] = [
@@ -34,7 +36,11 @@ export const MOD_DESTS: PatchDest[] = [
   { id: 'filterFreq', label: 'Cutoff' },
   { id: 'filterQ', label: 'Reson.' },
   { id: 'vcaGain', label: 'VCA' },
+  { id: 'osc1Level', label: 'Vol 1' },
+  { id: 'osc2Level', label: 'Vol 2' },
+  { id: 'osc3Level', label: 'Vol 3' },
   { id: 'noiseLevel', label: 'Ruido' },
+  { id: 'noiseFilterFreq', label: 'Pasab.' },
 ];
 
 /** Estado de la matriz: qué intersecciones (fuente→destino) están conectadas. */

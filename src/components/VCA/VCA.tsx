@@ -12,6 +12,8 @@ interface VCAProps {
   setMixOsc2: (value: number) => void;
   mixOsc3: number;
   setMixOsc3: (value: number) => void;
+  mixNoise: number;
+  setMixNoise: (value: number) => void;
 }
 
 export const VCA: React.FC<VCAProps> = ({
@@ -23,9 +25,13 @@ export const VCA: React.FC<VCAProps> = ({
   setMixOsc2,
   mixOsc3,
   setMixOsc3,
+  mixNoise,
+  setMixNoise,
 }) => {
-  // Convertir dB a un valor normalizado para visualización
-  const normalizedVolume = (volume + 30) / 32; // -30dB a +10dB normalizado de 0 a 1
+  // El extremo inferior del master (-40 dB) silencia por completo (el motor pone gain 0).
+  const muted = volume <= -40;
+  // Convertir dB a un valor normalizado para visualización (-40dB a +2dB → 0..1).
+  const normalizedVolume = (volume + 40) / 42;
 
   return (
     <div className="module vca-module">
@@ -48,14 +54,18 @@ export const VCA: React.FC<VCAProps> = ({
               id="mix-osc3" label="VCO 3" min={-40} max={6} step={0.5}
               value={mixOsc3} display={`${mixOsc3.toFixed(1)}`} onChange={setMixOsc3}
             />
+            <Fader
+              id="mix-noise" label="Ruido" min={-40} max={6} step={0.5}
+              value={mixNoise} display={`${mixNoise.toFixed(1)}`} onChange={setMixNoise}
+            />
           </div>
         </div>
 
         <div className="master-section">
           <div className="fader-bank">
             <Fader
-              id="volume" label="Master" min={-30} max={2} step={0.1}
-              value={volume} display={`${volume.toFixed(1)} dB`} onChange={setVolume}
+              id="volume" label="Master" min={-40} max={2} step={0.1}
+              value={volume} display={muted ? 'Mute' : `${volume.toFixed(1)} dB`} onChange={setVolume}
             />
             <div className="volume-display">
               <div className="volume-meter">
