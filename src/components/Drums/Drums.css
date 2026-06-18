@@ -59,6 +59,15 @@
   text-shadow: 0 0 10px var(--glow);
 }
 
+/* Dropdown de selección de sample por voz. */
+.drum-sample-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 160px;
+  margin-left: auto;
+  font-size: 0.66rem;
+}
+
 /* Botón de carga de sample (input file oculto). */
 .drum-load {
   font-family: var(--font-mono);

@@ -27,6 +27,10 @@ interface DrumsProps {
   toggleStep: (voice: number, step: number) => void;
   currentSteps: number[];
   onLoadSample: (voice: number, file: File) => void;
+  // Selección de sample por voz: opciones disponibles (id/nombre), id seleccionado y handler.
+  sampleOptions: { id: string; name: string }[][];
+  selectedSample: string[];
+  onSelectSample: (voice: number, id: string) => void;
   // Efectos propios de la batería (independientes del sinte).
   reverbDecay: number;
   setReverbDecay: (v: number) => void;
@@ -62,6 +66,9 @@ const Drums: React.FC<DrumsProps> = ({
   toggleStep,
   currentSteps,
   onLoadSample,
+  sampleOptions,
+  selectedSample,
+  onSelectSample,
   reverbDecay,
   setReverbDecay,
   delayTime,
@@ -111,6 +118,16 @@ const Drums: React.FC<DrumsProps> = ({
             <div className="drum-voice" key={label}>
               <div className="drum-voice-top">
                 <span className="drum-voice-name">{label}</span>
+                <select
+                  className="control-select drum-sample-select"
+                  aria-label={`Sample de ${label}`}
+                  value={selectedSample[v]}
+                  onChange={(e) => onSelectSample(v, e.target.value)}
+                >
+                  {(sampleOptions[v] ?? []).map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.name}</option>
+                  ))}
+                </select>
                 <label className="drum-load" title="Cargar sample propio">
                   ⬆ Sample
                   <input

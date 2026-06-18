@@ -3,7 +3,53 @@ import * as Tone from 'tone';
 /** Número de voces de batería. */
 export const DRUM_VOICES = 4;
 /** Etiquetas/nombres del kit por defecto (una por voz). */
-export const DRUM_LABELS = ['Kick', 'Snare', 'Hat', 'Clap'];
+export const DRUM_LABELS = ['Kick', 'Snare', 'Hat', 'Open Hat'];
+
+/**
+ * Catálogo de samples por defecto alojados en un bucket S3. Cada voz tiene un array de
+ * samples (puede estar vacío: en ese caso la voz cae al sonido sintetizado). El usuario
+ * puede añadir los suyos en runtime; esos se agregan al final de la lista de la voz.
+ *
+ * TODO: reemplazar SAMPLE_BASE_URL por la URL real del bucket y los nombres de archivo de
+ * cada voz por los reales. El bucket debe permitir GET por CORS desde el origen de la app.
+ */
+export const SAMPLE_BASE_URL = 'https://amazons3-images-micel10.s3.us-east-2.amazonaws.com/sounds/DrumsModulor/';
+
+export interface DrumSample {
+  name: string; // nombre mostrado en el dropdown
+  url: string; // URL completa del sample
+}
+
+// Un array por voz (índice = voz: 0 Kick, 1 Snare, 2 Hat, 3 Open Hat).
+export const DEFAULT_SAMPLES: DrumSample[][] = [
+  [
+    { name: 'Kick A', url: SAMPLE_BASE_URL + 'Kick/Kick_01.wav' },
+    { name: 'Kick B', url: SAMPLE_BASE_URL + 'Kick/Kick_02.wav' },
+    { name: '808 A', url: SAMPLE_BASE_URL + 'Kick/Bass808_01.wav' },
+    { name: '808 B', url: SAMPLE_BASE_URL + 'Kick/Bass808_02.wav' },
+  ],
+  [
+    { name: 'Snare A', url: SAMPLE_BASE_URL + 'Snare/Snare_01.wav' },
+    { name: 'Snare B', url: SAMPLE_BASE_URL + 'Snare/Snare_02.wav' },
+    { name: 'Snare C', url: SAMPLE_BASE_URL + 'Snare/Snare_03.wav' },
+    { name: 'Clap A', url: SAMPLE_BASE_URL + 'Snare/Clap_01.wav' },
+    { name: 'Clap B', url: SAMPLE_BASE_URL + 'Snare/Clap_02.wav' },
+  ],
+  [
+    { name: 'HiHat A', url: SAMPLE_BASE_URL + 'HiHat/HiHat_01.wav' },
+    { name: 'HiHat B', url: SAMPLE_BASE_URL + 'HiHat/HiHat_02.wav' },
+    { name: 'HiHat C', url: SAMPLE_BASE_URL + 'HiHat/HiHat_03.wav' },
+    { name: 'Shaker A', url: SAMPLE_BASE_URL + 'HiHat/Shaker_01.wav' },
+  ],
+  [
+    { name: 'OpenHat A', url: SAMPLE_BASE_URL + 'OpenHat/OpenHat_01.wav' },
+    { name: 'OpenHat B', url: SAMPLE_BASE_URL + 'OpenHat/OpenHat_02.wav' },
+    { name: 'Cymbal A', url: SAMPLE_BASE_URL + 'OpenHat/Cymbal_01.wav' },
+    { name: 'Cymbal B', url: SAMPLE_BASE_URL + 'OpenHat/Cymbal_02.wav' },
+    { name: 'Tom A', url: SAMPLE_BASE_URL + 'OpenHat/Tom_01.wav' },
+    { name: 'Up A', url: SAMPLE_BASE_URL + 'OpenHat/Up_01.wav' },
+  ],
+];
 
 /**
  * Kit de batería por defecto SINTETIZADO (sin assets binarios): se renderiza cada golpe a un
@@ -92,19 +138,18 @@ export async function synthesizeKit(): Promise<Tone.ToneAudioBuffer[]> {
     noise.stop(0.12);
   });
 
-  // Clap: ruido pasabanda con cola algo más larga.
-  const clap = await render(0.3, (ctx) => {
-    const g = ampEnv(ctx, 0.14);
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 1200;
-    bp.Q.value = 1;
-    bp.connect(g);
-    const noise = noiseSource(ctx, 0.3);
-    noise.connect(bp);
+  // Open hat: como el hi-hat (ruido pasaaltos) pero con cola larga y "sizzly".
+  const openHat = await render(0.5, (ctx) => {
+    const g = ampEnv(ctx, 0.35);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 6000;
+    hp.connect(g);
+    const noise = noiseSource(ctx, 0.5);
+    noise.connect(hp);
     noise.start(0);
-    noise.stop(0.25);
+    noise.stop(0.45);
   });
 
-  return [kick, snare, hat, clap];
+  return [kick, snare, hat, openHat];
 }

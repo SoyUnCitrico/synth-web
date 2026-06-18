@@ -97,6 +97,8 @@ export const PERSIST_KEYS = {
   delaySends: 'synth-web:delaySends:v1',
   reverbSendEnabled: 'synth-web:reverbSendEnabled:v1',
   delaySendEnabled: 'synth-web:delaySendEnabled:v1',
+  drumEnabled: 'synth-web:drumEnabled:v1',
+  drumSampleSel: 'synth-web:drumSampleSel:v1',
   drumPitch: 'synth-web:drumPitch:v1',
   drumDecay: 'synth-web:drumDecay:v1',
   drumVol: 'synth-web:drumVol:v1',

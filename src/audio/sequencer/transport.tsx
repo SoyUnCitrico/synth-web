@@ -27,7 +27,7 @@ const TransportContext = createContext<TransportContextValue | null>(null);
 export const TransportProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [running, setRunning] = useState<boolean>(false);
   // BPM persistente (compartido por el slider del módulo y el del header).
-  const [bpm, setBpm] = usePersistentState<number>(PERSIST_KEYS.seqBpm, 120);
+  const [bpm, setBpm] = usePersistentState<number>(PERSIST_KEYS.seqBpm, 128);
   const resetRef = useRef<() => void>(() => {});
   const reset = useCallback(() => resetRef.current(), []);
   const registerReset = useCallback((fn: () => void) => {

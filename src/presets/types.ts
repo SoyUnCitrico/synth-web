@@ -97,6 +97,8 @@ export interface PresetState {
   cv2Steps: CvStep[];
   cv3Steps: CvStep[];
   // --- Batería (no incluye los buffers de sample del usuario) ---
+  drumEnabled: boolean[];
+  drumSampleSel: string[];
   drumPitch: number[];
   drumDecay: number[];
   drumVol: number[];

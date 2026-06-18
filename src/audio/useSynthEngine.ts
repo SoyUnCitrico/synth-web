@@ -164,6 +164,8 @@ export interface SynthEngine {
   triggerDrum: (voice: number, time?: number, velocity?: number) => void;
   /** Carga un sample (URL o File del usuario) en una voz de batería. */
   loadDrumSample: (voice: number, src: string | File) => Promise<void>;
+  /** Carga el sonido sintetizado por defecto en una voz de batería. */
+  loadDrumSynth: (voice: number) => Promise<void>;
   /** Analizador de forma de onda (osciloscopio). */
   waveformAnalyser: React.RefObject<Tone.Analyser | null>;
   /** Analizador FFT (espectro). */
@@ -243,6 +245,9 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   // Batería: por voz, player → envolvente (decay) → volumen → bus de salida + envíos.
   const drumPlayerRefs = useRef<Tone.Player[]>([]);
   const drumEnvRefs = useRef<Tone.AmplitudeEnvelope[]>([]);
+  // Buffers del kit sintetizado, cacheados como promesa: la página decide qué voz los usa
+  // (vía loadDrumSynth) en vez de auto-cargarlos al montar.
+  const synthKitPromiseRef = useRef<Promise<Tone.ToneAudioBuffer[]> | null>(null);
   const drumVolRefs = useRef<Tone.Gain[]>([]);
   const drumRevSendRefs = useRef<Tone.Gain[]>([]);
   const drumDelSendRefs = useRef<Tone.Gain[]>([]);
@@ -858,23 +863,12 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   }, [params.delayFeedback]);
 
   // --- Batería ---
-  // Kit por defecto: se sintetiza una vez y se carga en los players (el usuario puede
-  // reemplazar cualquier voz con loadDrumSample).
+  // Kit por defecto: se sintetiza una vez y se cachea como promesa. NO se auto-carga en los
+  // players; la página decide qué carga cada voz (sample del catálogo, subido, o sintetizado
+  // vía loadDrumSynth). Esto permite el dropdown de selección por voz.
   useEffect(() => {
-    let cancelled = false;
-    synthesizeKit()
-      .then((buffers) => {
-        if (cancelled) return;
-        buffers.forEach((buf, i) => {
-          const p = drumPlayerRefs.current[i];
-          // No pisar una voz que el usuario ya cargó (player con buffer propio).
-          if (p && !p.loaded) p.buffer = buf;
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    synthKitPromiseRef.current = synthesizeKit();
+    synthKitPromiseRef.current.catch(() => {});
   }, []);
 
   // Pitch (playbackRate) por voz.
@@ -1009,17 +1003,32 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     player.start(t);
   }, []);
 
-  // Carga un sample (URL del kit o File subido por el usuario) en una voz.
-  const loadDrumSample = useCallback(async (voice: number, src: string | File) => {
+  // Carga el sonido sintetizado por defecto (del kit cacheado) en una voz.
+  const loadDrumSynth = useCallback(async (voice: number) => {
     const player = drumPlayerRefs.current[voice];
-    if (!player) return;
-    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
-    try {
-      await player.load(url);
-    } finally {
-      if (typeof src !== 'string') URL.revokeObjectURL(url);
-    }
+    if (!player || !synthKitPromiseRef.current) return;
+    const buffers = await synthKitPromiseRef.current;
+    const buf = buffers[voice];
+    if (player && buf) player.buffer = buf;
   }, []);
+
+  // Carga un sample (URL del catálogo o File subido por el usuario) en una voz. Si la carga
+  // falla (p. ej. URL inexistente), cae al sonido sintetizado para que la voz no quede muda.
+  const loadDrumSample = useCallback(
+    async (voice: number, src: string | File) => {
+      const player = drumPlayerRefs.current[voice];
+      if (!player) return;
+      const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+      try {
+        await player.load(url);
+      } catch {
+        await loadDrumSynth(voice);
+      } finally {
+        if (typeof src !== 'string') URL.revokeObjectURL(url);
+      }
+    },
+    [loadDrumSynth],
+  );
 
   return useMemo(
     () => ({
@@ -1032,9 +1041,10 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       setSeqVel,
       triggerDrum,
       loadDrumSample,
+      loadDrumSynth,
       waveformAnalyser: waveformRef,
       fftAnalyser: fftRef,
     }),
-    [envAttack, envRelease, setNote, setSeqCv, setSeqCv2, setSeqCv3, setSeqVel, triggerDrum, loadDrumSample],
+    [envAttack, envRelease, setNote, setSeqCv, setSeqCv2, setSeqCv3, setSeqVel, triggerDrum, loadDrumSample, loadDrumSynth],
   );
 }

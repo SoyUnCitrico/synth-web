@@ -1,6 +1,7 @@
 import React from 'react';
 import Fader from '../Fader/Fader';
 import Knob from '../Knob/Knob';
+import { DRUM_LABELS } from '../../audio/drums/kit';
 import './VCA.css';
 
 interface VCAProps {
@@ -29,6 +30,9 @@ interface VCAProps {
   onDelaySend: (i: number, v: number) => void;
   delaySendEnabled: boolean;
   onToggleDelaySend: () => void;
+  // Encendido/apagado por voz de batería (índice 0..DRUM_VOICES-1)
+  drumEnabled: boolean[];
+  onToggleDrumEnabled: (i: number) => void;
 }
 
 const CHANNEL_LABELS = ['VCO 1', 'VCO 2', 'VCO 3', 'Ruido'];
@@ -56,6 +60,8 @@ export const VCA: React.FC<VCAProps> = ({
   onDelaySend,
   delaySendEnabled,
   onToggleDelaySend,
+  drumEnabled,
+  onToggleDrumEnabled,
 }) => {
   // El extremo inferior del master (-40 dB) silencia por completo (el motor pone gain 0).
   const muted = volume <= -40;
@@ -107,36 +113,54 @@ export const VCA: React.FC<VCAProps> = ({
       </div>
       <div className="module-controls row big">
         <div className="mixer">
-          <span className="mixer-title">VCA</span>
-          <div className="mixer-strips">
-            {channels.map((ch, i) => (
-              <div className="mixer-strip" key={CHANNEL_LABELS[i]}>
-                <Fader
-                  id={`mix-${i}`}
-                  label={CHANNEL_LABELS[i]}
-                  min={-40}
-                  max={6}
-                  step={0.5}
-                  value={ch.mix}
-                  display={`${ch.mix.toFixed(1)}`}
-                  onChange={ch.setMix}
-                />
-                <div className="mixer-ms">
-                  <label className={`ms-btn mute ${mutes[i] ? 'on' : ''}`}>
-                    <input type="checkbox" checked={mutes[i] ?? false} onChange={() => onToggleMute(i)} />
-                    M
-                  </label>
-                  <label className={`ms-btn solo ${solos[i] ? 'on' : ''}`}>
-                    <input type="checkbox" checked={solos[i] ?? false} onChange={() => onToggleSolo(i)} />
-                    S
-                  </label>
+          <div className="mixer-vca-controls">
+            <span className="mixer-title">VCA</span>
+            <div className="mixer-strips">
+              {channels.map((ch, i) => (
+                <div className="mixer-strip" key={CHANNEL_LABELS[i]}>
+                  <Fader
+                    id={`mix-${i}`}
+                    label={CHANNEL_LABELS[i]}
+                    min={-40}
+                    max={6}
+                    step={0.5}
+                    value={ch.mix}
+                    display={`${ch.mix.toFixed(1)}`}
+                    onChange={ch.setMix}
+                  />
+                  <div className="mixer-ms">
+                    <label className={`ms-btn mute ${mutes[i] ? 'on' : ''}`}>
+                      <input type="checkbox" checked={mutes[i] ?? false} onChange={() => onToggleMute(i)} />
+                      M
+                    </label>
+                    <label className={`ms-btn solo ${solos[i] ? 'on' : ''}`}>
+                      <input type="checkbox" checked={solos[i] ?? false} onChange={() => onToggleSolo(i)} />
+                      S
+                    </label>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+              
+            </div>
           </div>
-
-  
+          <div className="mixer-drums-controls">
+            <span className="mixer-title">DRUMS</span>
+            {DRUM_LABELS.map((label, i) => (
+              <label
+                key={label}
+                className={`drum-enable checkbox-option ${drumEnabled[i] ? 'on' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={drumEnabled[i] ?? false}
+                  onChange={() => onToggleDrumEnabled(i)}
+                />
+                {label}
+              </label>
+            ))}
+          </div> 
         </div>
+
         <div className="sends">
           {sendRow('Reverb', reverbSendEnabled, onToggleReverbSend, reverbSends, onReverbSend)}
           {sendRow('Delay', delaySendEnabled, onToggleDelaySend, delaySends, onDelaySend)}
