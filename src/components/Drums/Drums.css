@@ -95,6 +95,33 @@
   margin-bottom: 0.5rem;
 }
 
+/* Bloque del secuenciador de triggers (config + lane). min-width:0 deja que el
+   overflow-x:auto de .seq-steps muestre su slider en vez de ensanchar el módulo. */
+.drum-seq-inputs {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.drum-seq-inputs .seq-steps {
+  margin: 0 auto;
+}
+
+/* ── Móvil: knobs en fila arriba, secuenciador de triggers debajo a todo el ancho ── */
+@media (max-width: 768px) {
+  .drum-voice-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .drum-controls {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    justify-content: space-between;
+    margin-bottom: 0.4rem;
+  }
+  .drum-seq-inputs {
+    width: 100%;
+  }
+}
+
 .drum-seq-config {
   display: flex;
   align-items: flex-end;

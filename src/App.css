@@ -2,7 +2,8 @@
   max-width: 1400px;
   min-width: 360px;
   margin: 0 auto;
-  padding: 1.25rem 0 2rem;
+  /* padding-bottom extra para que el nav inferior fijo no tape el último módulo. */
+  padding: 1.25rem 0 5rem;
   font-family: var(--font-mono);
   color: var(--ink);
   background: transparent;
@@ -11,12 +12,33 @@
 }
 
 .synth-modules {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
   max-width: 1200px;
   margin-bottom: 2rem;
   padding: 0 0.5rem;
+}
+
+/* En el grid mandan las pistas: los módulos normales no fuerzan su ancho mínimo. */
+.synth-modules > .module {
+  margin: 0;
+  min-width: 0;
+  width: auto;
+}
+
+/* Fila compartida Matriz de modulación (2/3) + MIDI (1/3). */
+.matrix-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.matrix-row > .module {
+  margin: 0;
+  min-width: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -25,6 +47,9 @@
 .module {
   --accent: var(--cyan);
   --glow: rgba(25, 229, 255, 0.45);
+  /* Margen de scroll para que las anclas del nav inferior no queden tapadas por la barra. */
+  scroll-margin-top: 1rem;
+  scroll-margin-bottom: 4.5rem;
   position: relative;
   min-width: 320px;
   flex: 1;
@@ -62,7 +87,7 @@
 .vcf-module   { --accent: var(--magenta);    --glow: rgba(255, 43, 214, 0.45); }
 .vcf2-module  { --accent: #ff7ae0;            --glow: rgba(255, 122, 224, 0.45); }
 .adsr-module  { --accent: var(--amber);      --glow: rgba(255, 138, 30, 0.50); }
-.vca-module   { --accent: var(--led-green);  --glow: rgba(61, 255, 149, 0.45); }
+.vca-module   { --accent: var(--led-green);  --glow: rgba(61, 255, 149, 0.45); grid-column: 1 / -1; }
 .lfo-module   { --accent: var(--amber-soft); --glow: rgba(255, 180, 92, 0.45); }
 .filterenv-module { --accent: #b06bff;       --glow: rgba(176, 107, 255, 0.45); }
 .dahd-module      { --accent: #6bd0ff;       --glow: rgba(107, 208, 255, 0.45); }
@@ -77,6 +102,7 @@
    estrechas). Faders algo más compactos para que quepan.
    ───────────────────────────────────────────────────────────── */
 .envelope-row {
+  grid-column: 1 / -1;
   flex: 1 1 100%;
   width: 100%;
   display: flex;
@@ -97,6 +123,7 @@
 }
 
 .lfo-row {
+  grid-column: 1 / -1;
   flex: 1 1 100%;
   width: 100%;
   display: flex;
@@ -185,10 +212,11 @@
 } 
 
 .module-controls.big {
-  gap: 4rem;
+  flex-wrap: wrap;
+  gap: 2rem;
   margin-top: -0.5rem;
   justify-content: space-around;
-} 
+}
 
 .module-controls.disabled {
   opacity: 0.4;
@@ -472,14 +500,33 @@ input:focus + .slider {
 }
 
 /* ── Responsivo ── */
+
+/* Tablet: 2 columnas para no dejar los módulos normales demasiado angostos. */
+@media (max-width: 1024px) {
+  .synth-modules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Móvil: un módulo por fila; los módulos grandes apilan sus componentes en columna. */
 @media (max-width: 768px) {
   .synth-modules {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
-  .module {
-    min-width: 280px;
-    max-width: 700px;
-    width: 90%;
+  /* La matriz se va arriba y el MIDI debajo (una sola columna). */
+  .matrix-row {
+    grid-template-columns: 1fr;
+  }
+  /* Módulos pequeños: uno por fila también (no 2-up). */
+  .envelope-row .module,
+  .lfo-row .module {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  /* Mixer: apila VCA-strips, envíos y master en columna. */
+  .module-controls.row.big {
+    flex-direction: column;
+    gap: 1.25rem;
   }
   .module-big {
     max-width: 700px;

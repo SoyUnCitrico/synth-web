@@ -13,6 +13,8 @@ const App : React.FC = () => {
                 <Routes>
                     <Route path="/" element={<BasicSynth/>}/>
                 </Routes>
+                {/* BottomNav vive dentro de BasicSynth (es position:fixed) para acceder al
+                    estado de mute/encendido del mixer; sigue dentro de TransportProvider. */}
             </TransportProvider>
         </Router>
     )

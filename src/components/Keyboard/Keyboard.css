@@ -1,6 +1,9 @@
 /* Teclado en pantalla. Faceplate de consola + teclas luminosas al pulsarse. */
 .keyboard {
   position: relative;
+  /* Margen de scroll para el salto desde el nav inferior (que la barra no lo tape). */
+  scroll-margin-top: 1rem;
+  scroll-margin-bottom: 4.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;

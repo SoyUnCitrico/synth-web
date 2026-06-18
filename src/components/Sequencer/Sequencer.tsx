@@ -4,6 +4,7 @@ import {
   SEQ_ROOT_MIDI,
   MAX_STEPS,
   CLOCK_OPTIONS,
+  DEFAULT_PITCH_OFFSET,
   type SeqConfig,
   type SeqDirection,
   type PitchStep,
@@ -66,7 +67,7 @@ const SliderLane: React.FC<{
           {valueLabel && <span className="seq-note">{valueLabel(v)}</span>}
           <input
             type="range"
-            className={`control-slider vertical ${tall ? '' : 'short'}`}
+            className={`control-slider vertical ${tall ? 'large' : 'short'}`}
             min={min}
             max={max}
             step={step}
@@ -275,17 +276,33 @@ const Sequencer: React.FC<SequencerProps> = ({
           />
         </div>
 
-        {/* Secuenciadores 2-4: CV + gate. Sin Vel. */}
+        {/* Secuenciadores 2-4: CV + gate. Sin Vel. El seq 2 (which === 0) añade además una
+            hilera de Nota (pitch) que sale como fuente "Seq 2 MIDI" de la matriz MIDI. */}
         {cvData.map((cv, which) => {
           const seqIndex = which + 1;
+          const hasPitch = which === 0; // sólo el seq 2 tiene pitch/MIDI
           return (
             <div className="seq-channel" key={seqIndex}>
-              <span className="seq-channel-title">{`Seq ${seqIndex + 1} · CV`}</span>
+              <span className="seq-channel-title">{`Seq ${seqIndex + 1} · ${hasPitch ? 'Nota + CV' : 'CV'}`}</span>
               <SeqControls
                 index={seqIndex}
                 config={configs[seqIndex]}
                 onChange={(p) => updateConfig(seqIndex, p)}
               />
+              {hasPitch && (
+                <SliderLane
+                  label="Nota"
+                  values={cv.steps.map((s) => s.offset ?? DEFAULT_PITCH_OFFSET)}
+                  count={configs[seqIndex].steps}
+                  currentStep={currentSteps[seqIndex]}
+                  min={0}
+                  max={PITCH_RANGE}
+                  step={1}
+                  tall
+                  valueLabel={(v) => noteLabel(v)}
+                  onChange={(i, v) => updateCv(which, i, { offset: v })}
+                />
+              )}
               <SliderLane
                 label="CV"
                 values={cv.steps.map((s) => s.value)}

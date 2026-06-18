@@ -1,17 +1,28 @@
 import React from 'react';
-import { MOD_SOURCES, MOD_DESTS, type ModPatch } from '../../audio/cv/patch';
+import { MOD_SOURCES, MOD_DESTS, type ModPatch, type PatchSource } from '../../audio/cv/patch';
 import { GATE_SOURCES, GATE_DESTS, type GatePatch } from '../../audio/cv/gates';
+import { NOTE_SOURCES, NOTE_DESTS, type NotePatch } from '../../audio/cv/notes';
 import './PatchMatrix.css';
 
 interface MatrixRow {
   id: string;
   label: string;
+  short?: string; // etiqueta abreviada para móvil
 }
 interface MatrixCol {
   id: string;
   label: string;
+  short?: string; // etiqueta abreviada para móvil
   sub?: string; // subtítulo opcional (p. ej. "gate" / "trig")
 }
+
+// Renderiza la etiqueta completa y la abreviada; el CSS muestra una u otra según el ancho.
+const Label: React.FC<{ full: string; short?: string }> = ({ full, short }) => (
+  <>
+    <span className="patch-label-full">{full}</span>
+    <span className="patch-label-short">{short ?? full}</span>
+  </>
+);
 
 // Tabla genérica de patcheo: filas × columnas con un checkbox (pin) por intersección.
 // La clave de conexión es `${fila}>${columna}` (coincide con patchKey y gateKey).
@@ -30,7 +41,7 @@ const MatrixTable: React.FC<{
           <th className="patch-corner" aria-hidden="true" />
           {cols.map((col) => (
             <th key={col.id} className="patch-dest-label" scope="col">
-              <span>{col.label}</span>
+              <Label full={col.label} short={col.short} />
               {col.sub && <span className="patch-dest-sub">{col.sub}</span>}
             </th>
           ))}
@@ -40,7 +51,7 @@ const MatrixTable: React.FC<{
         {rows.map((row) => (
           <tr key={row.id}>
             <th className="patch-src-label" scope="row">
-              {row.label}
+              <Label full={row.label} short={row.short} />
             </th>
             {cols.map((col) => (
               <td key={col.id} className="patch-cell">
@@ -67,16 +78,32 @@ interface PatchMatrixProps {
   setPatch: React.Dispatch<React.SetStateAction<ModPatch>>;
   gatePatch: GatePatch;
   setGatePatch: React.Dispatch<React.SetStateAction<GatePatch>>;
+  /** Matriz MIDI: fuentes de nota → pitch de VCO / seguimiento de cutoff. */
+  notePatch: NotePatch;
+  setNotePatch: React.Dispatch<React.SetStateAction<NotePatch>>;
+  /** Filas de la sección CV. Por defecto MOD_SOURCES; BasicSynth la sobreescribe para
+   *  filtrar/reetiquetar los slots CC MIDI según el mapeo activo. */
+  modSources?: PatchSource[];
 }
 
 /**
- * Matriz de modulación estilo EMS VCS3. Dos secciones:
+ * Matriz de modulación estilo EMS VCS3. Tres secciones:
  *   - CV: fuentes continuas (LFO/AD/Seq CV) → AudioParams (detune/cutoff/…).
  *   - Gates/Triggers: fuentes de disparo (teclado/secuenciador) → envolventes. Hacia el
  *     ADSR el pin actúa como gate; hacia AD 1/AD 2 como trigger.
- * Las filas/columnas se definen en src/audio/cv/patch.ts y gates.ts.
+ *   - MIDI: fuentes de nota (teclado/MIDI/Seq 1/Seq 2) → pitch de VCO y seguimiento de
+ *     cutoff de los filtros (parafónico).
+ * Las filas/columnas se definen en src/audio/cv/patch.ts, gates.ts y notes.ts.
  */
-const PatchMatrix: React.FC<PatchMatrixProps> = ({ patch, setPatch, gatePatch, setGatePatch }) => {
+const PatchMatrix: React.FC<PatchMatrixProps> = ({
+  patch,
+  setPatch,
+  gatePatch,
+  setGatePatch,
+  notePatch,
+  setNotePatch,
+  modSources = MOD_SOURCES,
+}) => {
   const toggle =
     <T extends Partial<Record<string, boolean>>>(setter: React.Dispatch<React.SetStateAction<T>>) =>
     (rowId: string, colId: string) => {
@@ -92,7 +119,7 @@ const PatchMatrix: React.FC<PatchMatrixProps> = ({ patch, setPatch, gatePatch, s
       <div className="module-controls">
         <MatrixTable
           title="CV"
-          rows={MOD_SOURCES}
+          rows={modSources}
           cols={MOD_DESTS}
           isOn={(s, d) => !!patch[`${s}>${d}`]}
           onToggle={toggle(setPatch)}
@@ -100,9 +127,16 @@ const PatchMatrix: React.FC<PatchMatrixProps> = ({ patch, setPatch, gatePatch, s
         <MatrixTable
           title="Gates / Triggers"
           rows={GATE_SOURCES}
-          cols={GATE_DESTS.map((d) => ({ id: d.id, label: d.label, sub: d.mode === 'gate' ? 'gate' : 'trig' }))}
+          cols={GATE_DESTS.map((d) => ({ id: d.id, label: d.label, short: d.short, sub: d.mode === 'gate' ? 'gate' : 'trig' }))}
           isOn={(s, d) => !!gatePatch[`${s}>${d}`]}
           onToggle={toggle(setGatePatch)}
+        />
+        <MatrixTable
+          title="MIDI"
+          rows={NOTE_SOURCES}
+          cols={NOTE_DESTS}
+          isOn={(s, d) => !!notePatch[`${s}>${d}`]}
+          onToggle={toggle(setNotePatch)}
         />
       </div>
     </div>

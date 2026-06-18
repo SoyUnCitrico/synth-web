@@ -9,9 +9,10 @@ interface VCOProps {
   setOscType: (type: Tone.ToneOscillatorType) => void;
   frequency: number;
   setFrequency: (freq: number) => void;
+  /** Afinado fino en cents (±200). Independiente por oscilador; se suma a la matriz. */
+  fine: number;
+  setFine: (cents: number) => void;
   isSecondary: boolean;
-  detune?: number;
-  setDetune?: (detune: number) => void;
   enabled?: boolean;
   setEnabled?: (enabled: boolean) => void;
   pwm: number;
@@ -44,9 +45,9 @@ const VCO: React.FC<VCOProps> = ({
   setOscType,
   frequency,
   setFrequency,
+  fine,
+  setFine,
   isSecondary,
-  detune = 0,
-  setDetune,
   enabled = true,
   setEnabled,
   pwm,
@@ -65,13 +66,6 @@ const VCO: React.FC<VCOProps> = ({
   // Manejador para cambiar la frecuencia
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFrequency(parseFloat(e.target.value));
-  };
-
-  // Manejador para cambiar el detune (solo para VCO secundario)
-  const handleDetuneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (setDetune) {
-      setDetune(parseFloat(e.target.value));
-    }
   };
 
   // Manejador para activar/desactivar el oscilador secundario
@@ -138,16 +132,18 @@ const VCO: React.FC<VCOProps> = ({
           </div>
         )}
 
-        {!isSecondary && (
-          <div className="control-group">
-            <label htmlFor="frequency">Frecuencia (log)</label>
-            <input
-              type="number"
-              id="frequency"
-              value={frequency}
-              onChange={handleFrequencyChange}
-              className="control-input"
-            />
+        {/* Frecuencia base (Hz) independiente por oscilador + afinado fino (±200 cents). */}
+        <div className="control-group">
+          <label htmlFor={`freq-${idSuffix}`}>Frecuencia (log)</label>
+          <input
+            type="number"
+            id={`freq-${idSuffix}`}
+            value={frequency}
+            onChange={handleFrequencyChange}
+            className="control-input"
+            disabled={isDisabled}
+          />
+          <div className="vco-tune-knobs">
             {/* Perilla con escala logarítmica: más recorrido en graves, menos en agudos. */}
             <Knob
               label="Freq"
@@ -156,34 +152,22 @@ const VCO: React.FC<VCOProps> = ({
               step={1}
               display={`${frequency.toFixed(0)} Hz`}
               onChange={setFrequency}
+              disabled={isDisabled}
+            />
+            {/* Afinado fino: ±200 cents en pasos suaves. No entra en la matriz. */}
+            <Knob
+              label="Fina"
+              value={fine}
+              min={-200}
+              max={200}
+              step={1}
+              display={`${fine > 0 ? '+' : ''}${fine} ct`}
+              onChange={setFine}
+              disabled={isDisabled}
             />
           </div>
-        )}
-        
-        {isSecondary && setDetune && (
-          <div className="control-group">
-            <label htmlFor={`detune-${idSuffix}`}>Detune: {detune} cents</label>
-            <input
-              type="number"
-              value={detune}
-              onChange={handleDetuneChange}
-              className="control-input"
-              disabled={!enabled}
-            />
-            <input
-              type="range"
-              id={`detune-${idSuffix}`}
-              min="-2400" 
-              max="2400" 
-              step="1" 
-              value={detune}
-              onChange={handleDetuneChange}
-              className="control-slider"
-              disabled={!enabled}
-            />
-          </div>
-        )}
-        
+        </div>
+
         <div className="control-display">
           <div className="waveform-display">
             <svg viewBox="0 0 100 50" className={`waveform-svg ${isDisabled ? 'disabled' : ''}`}>

@@ -7,6 +7,7 @@ import {
   BASE_CLOCK,
   SEQ_COUNT,
   SEQ_ROOT,
+  DEFAULT_PITCH_OFFSET,
   type SeqConfig,
   type PitchStep,
   type CvStep,
@@ -31,8 +32,6 @@ interface UseSequencerOptions {
   setSeqCv: (value: number, time: number) => void;
   setSeqCv2: (value: number, time: number) => void;
   setSeqCv3: (value: number, time: number) => void;
-  /** Escribe el CV de la velocidad (Vel) del secuenciador 1. */
-  setSeqVel: (value: number, time: number) => void;
   // --- Batería: un secuenciador de trigger por voz, sobre el mismo transporte. ---
   drumConfigs: SeqConfig[];
   drumSteps: DrumStep[][]; // [voz][paso]
@@ -114,9 +113,8 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
           if (!s) return;
 
           if (seq === 0) {
-            // Pitch + gate. La Vel del paso también sale como CV (fuente de la matriz).
+            // Pitch + gate. La Vel del paso escala el pico de la envolvente (no es fuente CV).
             const ps = s as PitchStep;
-            dataRef.current.setSeqVel(ps.velocity, time);
             if (ps.gate) {
               const note = Tone.Frequency(SEQ_ROOT).transpose(ps.offset).toNote();
               dataRef.current.fireAttack(source, note, time, ps.velocity);
@@ -125,11 +123,17 @@ export function useSequencer(opts: UseSequencerOptions): UseSequencerResult {
               dataRef.current.fireRelease(source, time);
             }
           } else {
-            // CV continuo + gate (sin pitch ni velocidad: pico completo).
+            // CV continuo + gate. El seq 2 además emite una NOTA (fuente "Seq 2 MIDI" de la
+            // matriz MIDI) desde su offset; los seq 3/4 no tienen pitch (note = undefined).
+            // Sin Vel: pico completo (velocity 1).
             const cs = s as CvStep;
             cvSetters[seq]!(cs.value, time);
+            const note =
+              seq === 1
+                ? Tone.Frequency(SEQ_ROOT).transpose(cs.offset ?? DEFAULT_PITCH_OFFSET).toNote()
+                : undefined;
             if (cs.gate) {
-              dataRef.current.fireAttack(source, undefined, time, 1);
+              dataRef.current.fireAttack(source, note, time, 1);
               dataRef.current.fireRelease(source, gateOff(cs.gateLen));
             } else {
               dataRef.current.fireRelease(source, time);

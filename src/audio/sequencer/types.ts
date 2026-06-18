@@ -45,9 +45,15 @@ export interface PitchStep {
   gateLen: number;
 }
 
-/** Paso de un secuenciador de CV (2-4): `value` es el CV 0..1; el resto, como PitchStep. */
+/**
+ * Paso de un secuenciador de CV (2-4): `value` es el CV 0..1; el resto, como PitchStep.
+ * `offset` (semitonos desde la raíz) sólo lo usa el seq 2, que además de CV emite una NOTA
+ * por la matriz MIDI ("Seq 2 MIDI"); los seq 3/4 lo ignoran. Puede faltar en datos guardados
+ * antiguos: leer siempre con `?? DEFAULT_PITCH_OFFSET`.
+ */
 export interface CvStep {
   value: number;
+  offset: number;
   gate: boolean;
   velocity: number;
   gateLen: number;

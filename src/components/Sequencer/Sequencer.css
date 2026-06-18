@@ -143,7 +143,13 @@
 .seq-step .control-slider.vertical.short {
   height: 38px;
 }
+.seq-step .control-slider.vertical.large {
+  height: 100px;
+}
 
+.seq-step .control-slider.vertical.xLarge {
+  height: 120px;
+}
 .seq-gate {
   width: 16px;
   height: 16px;

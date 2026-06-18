@@ -40,6 +40,14 @@
   filter: drop-shadow(0 0 5px rgba(255, 138, 30, 0.8));
 }
 
+/* Perillas de afinación (frecuencia base + fino) lado a lado. */
+.vco-tune-knobs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 /* Icono de forma de onda dentro del selector (checkbox). */
 .wave-icon {
   width: 34px;

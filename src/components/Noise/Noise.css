@@ -16,3 +16,11 @@
   padding-right: 10px;
   padding-left: 10px;
 }
+
+/* Perillas del pasabanda (centro + resonancia) lado a lado. */
+.noise-filter-knobs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}

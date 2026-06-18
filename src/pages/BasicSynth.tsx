@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import * as Tone from 'tone';
 import VCO from '../components/VCO/VCO';
 import { VCF } from '../components/VCF/VCF';
@@ -14,18 +14,34 @@ import Delay from '../components/Delay/Delay';
 import PatchMatrix from '../components/PatchMatrix/PatchMatrix';
 import Sequencer from '../components/Sequencer/Sequencer';
 import Drums from '../components/Drums/Drums';
+import Midi from '../components/Midi/Midi';
+import { useMidi } from '../audio/midi/useMidi';
 import Keyboard from '../components/Keyboard/Keyboard';
 import { ALL_KEYS } from '../components/Keyboard/layout';
 import { DRUM_VOICES, DEFAULT_SAMPLES } from '../audio/drums/kit';
 import { useSynthEngine, type NoiseType, type Vcf2Type, type Vcf2Source } from '../audio/useSynthEngine';
-import { createPatch, type ModPatch } from '../audio/cv/patch';
+import {
+  createPatch,
+  MOD_SOURCES,
+  MIDI_CC_SLOTS,
+  type ModPatch,
+  type PatchSource,
+} from '../audio/cv/patch';
 import {
   createGatePatch,
   GATE_DESTS,
+  GATE_SOURCES,
   gateKey,
   type GatePatch,
   type GateSourceId,
 } from '../audio/cv/gates';
+import {
+  createNotePatch,
+  NOTE_DESTS,
+  noteKey,
+  type NotePatch,
+  type NoteSourceId,
+} from '../audio/cv/notes';
 import { useSequencer } from '../audio/sequencer/useSequencer';
 import { useTransport } from '../audio/sequencer/transport';
 import {
@@ -40,6 +56,8 @@ import {
 } from '../audio/sequencer/types';
 import { usePersistentState, PERSIST_KEYS } from '../hooks/usePersistentState';
 import Presets from '../components/Presets/Presets';
+import { MODULE_SECTIONS, KEYBOARD_SECTION_ID } from '../components/BottomNav/sections';
+import BottomNav from '../components/BottomNav/BottomNav';
 import { usePresets } from '../presets/usePresets';
 import type { PresetState } from '../presets/types';
 import '../App.css';
@@ -58,16 +76,19 @@ const BasicSynth: React.FC = () => {
   // Parámetros del oscilador 1
   const [oscType, setOscType] = usePersistentState<Tone.ToneOscillatorType>(PERSIST_KEYS.osc1Type, 'sawtooth');
   const [frequency, setFrequency] = usePersistentState<number>(PERSIST_KEYS.osc1Freq, 440);
+  const [osc1Fine, setOsc1Fine] = usePersistentState<number>(PERSIST_KEYS.osc1Fine, 0);
   const [pwm1, setPwm1] = usePersistentState<number>(PERSIST_KEYS.osc1Pwm, 0);
 
-  // Parámetros del oscilador 2
+  // Parámetros del oscilador 2 (frecuencia base propia + afinado fino en cents)
   const [osc2Type, setOsc2Type] = usePersistentState<Tone.ToneOscillatorType>(PERSIST_KEYS.osc2Type, 'sawtooth');
+  const [osc2Freq, setOsc2Freq] = usePersistentState<number>(PERSIST_KEYS.osc2Freq, 440);
   const [detune, setDetune] = usePersistentState<number>(PERSIST_KEYS.osc2Detune, 0);
   const [osc2Enabled, setOsc2Enabled] = usePersistentState<boolean>(PERSIST_KEYS.osc2Enabled, false);
   const [pwm2, setPwm2] = usePersistentState<number>(PERSIST_KEYS.osc2Pwm, 0);
 
-  // Parámetros del oscilador 3
+  // Parámetros del oscilador 3 (frecuencia base propia + afinado fino en cents)
   const [osc3Type, setOsc3Type] = usePersistentState<Tone.ToneOscillatorType>(PERSIST_KEYS.osc3Type, 'square');
+  const [osc3Freq, setOsc3Freq] = usePersistentState<number>(PERSIST_KEYS.osc3Freq, 440);
   const [osc3Detune, setOsc3Detune] = usePersistentState<number>(PERSIST_KEYS.osc3Detune, 0);
   const [osc3Enabled, setOsc3Enabled] = usePersistentState<boolean>(PERSIST_KEYS.osc3Enabled, false);
   const [pwm3, setPwm3] = usePersistentState<number>(PERSIST_KEYS.osc3Pwm, 0);
@@ -77,6 +98,7 @@ const BasicSynth: React.FC = () => {
   const [noiseEnabled, setNoiseEnabled] = usePersistentState<boolean>(PERSIST_KEYS.noiseEnabled, false);
   const [noiseFilterEnabled, setNoiseFilterEnabled] = usePersistentState<boolean>(PERSIST_KEYS.noiseFilterEnabled, false);
   const [noiseFilterFreq, setNoiseFilterFreq] = usePersistentState<number>(PERSIST_KEYS.noiseFilterFreq, 1000);
+  const [noiseFilterRes, setNoiseFilterRes] = usePersistentState<number>(PERSIST_KEYS.noiseFilterRes, 2);
 
   // Mixer: nivel por canal (dB)
   const [mixOsc1, setMixOsc1] = usePersistentState<number>(PERSIST_KEYS.mixOsc1, 0);
@@ -144,9 +166,33 @@ const BasicSynth: React.FC = () => {
   const [gatePatch, setGatePatch] = usePersistentState<GatePatch>(PERSIST_KEYS.gatePatch, () =>
     createGatePatch([
       { source: 'keyboard', dest: 'amp' },
+      { source: 'midi', dest: 'amp' },
       { source: 'seq1', dest: 'amp' },
+      // La compuerta de FX gateada por la nota (como el comportamiento previo a su ruteo).
+      { source: 'keyboard', dest: 'fx' },
+      { source: 'midi', dest: 'fx' },
+      { source: 'seq1', dest: 'fx' },
     ]),
   );
+
+  // Matriz MIDI (fuentes de nota → pitch de VCO / seguimiento de cutoff). Por defecto sólo el
+  // teclado y el seq 1 van a VCO 1 (parafónico: rutear a más VCO los hace sonar a la vez).
+  const [notePatch, setNotePatch] = usePersistentState<NotePatch>(PERSIST_KEYS.notePatch, () =>
+    createNotePatch([
+      { source: 'keyboard', dest: 'osc1' },
+      { source: 'seq1', dest: 'osc1' },
+    ]),
+  );
+
+  // Mapeo de perillas/CC MIDI: slot → número de CC (null = sin asignar). Las 4 primeras
+  // vienen pre-cableadas a CC 20–23 (el controlador del usuario). Es config del dispositivo
+  // (no entra en presets); el ruteo a destinos vive en modPatch (la matriz).
+  const [midiMap, setMidiMap] = usePersistentState<(number | null)[]>(PERSIST_KEYS.midiMap, () => {
+    const m: (number | null)[] = Array(MIDI_CC_SLOTS).fill(null);
+    [20, 21, 22, 23].forEach((cc, i) => (m[i] = cc));
+    return m;
+  });
+  const [learningSlot, setLearningSlot] = useState<number | null>(null);
 
   // Parámetros del reverb (efecto de envío)
   const [reverbDecay, setReverbDecay] = usePersistentState<number>(PERSIST_KEYS.reverbDecay, 2);
@@ -199,13 +245,13 @@ const BasicSynth: React.FC = () => {
     })),
   );
   const [cvSteps, setCvSteps] = usePersistentState<CvStep[]>(PERSIST_KEYS.cvSteps, () =>
-    Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
+    Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
   );
   const [cv2Steps, setCv2Steps] = usePersistentState<CvStep[]>(PERSIST_KEYS.cv2Steps, () =>
-    Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
+    Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
   );
   const [cv3Steps, setCv3Steps] = usePersistentState<CvStep[]>(PERSIST_KEYS.cv3Steps, () =>
-    Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
+    Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
   );
 
   // Batería: 4 voces de sample, cada una con pitch/decay/volumen/envíos y su secuenciador
@@ -261,13 +307,14 @@ const BasicSynth: React.FC = () => {
   // Motor de audio: construye el grafo de Tone.js una sola vez y sincroniza
   // estos parámetros con sus nodos sin reconstruirlo.
   const engine = useSynthEngine({
-    oscType, frequency, pwm: pwm1,
-    osc2Type, detune, osc2Enabled, pwm2,
-    osc3Type, osc3Detune, osc3Enabled, pwm3,
-    noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
+    oscType, frequency, osc1Fine, pwm: pwm1,
+    osc2Type, osc2Freq, detune, osc2Enabled, pwm2,
+    osc3Type, osc3Freq, osc3Detune, osc3Enabled, pwm3,
+    noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
     mixOsc1, mixOsc2, mixOsc3, mixNoise,
     channelMute, channelSolo,
     reverbSends, delaySends, reverbSendEnabled, delaySendEnabled,
+    fxGated: GATE_SOURCES.some((s) => !!gatePatch[gateKey(s.id, 'fx')]),
     filterType, filterFreq, filterRes,
     vcf2Type, vcf2Freq, vcf2Res, vcf2Source,
     ad1Attack, ad1Decay, ad1Depth: ad1Amount,
@@ -289,14 +336,32 @@ const BasicSynth: React.FC = () => {
   const gatePatchRef = useRef(gatePatch);
   gatePatchRef.current = gatePatch;
 
+  // Ruteo de nota según la matriz MIDI: lleva la nota de `source` a los VCO conectados
+  // (pitch) y a los filtros conectados (seguimiento de cutoff). Se lee notePatch por ref para
+  // no recrear los callbacks. Para fuentes sin filas (seq3/seq4) no hay claves → no hace nada.
+  const notePatchRef = useRef(notePatch);
+  notePatchRef.current = notePatch;
+  const routeNote = useCallback(
+    (source: GateSourceId, note: string, time?: number) => {
+      for (const dest of NOTE_DESTS) {
+        if (!notePatchRef.current[noteKey(source as NoteSourceId, dest.id)]) continue;
+        if (dest.id === 'osc1') engine.setOscNote(0, note, time);
+        else if (dest.id === 'osc2') engine.setOscNote(1, note, time);
+        else if (dest.id === 'osc3') engine.setOscNote(2, note, time);
+        else engine.setFilterKeyTrack(dest.id, note, time);
+      }
+    },
+    [engine],
+  );
+
   const fireGateAttack = useCallback(
     (source: GateSourceId, note: string | undefined, time?: number, velocity = 1) => {
-      if (note) engine.setNote(note, time);
+      if (note) routeNote(source, note, time);
       for (const dest of GATE_DESTS) {
         if (gatePatchRef.current[gateKey(source, dest.id)]) engine.envAttack(dest.id, time, velocity);
       }
     },
-    [engine],
+    [engine, routeNote],
   );
 
   const fireGateRelease = useCallback(
@@ -389,7 +454,6 @@ const BasicSynth: React.FC = () => {
     setSeqCv: engine.setSeqCv,
     setSeqCv2: engine.setSeqCv2,
     setSeqCv3: engine.setSeqCv3,
-    setSeqVel: engine.setSeqVel,
     drumConfigs,
     drumSteps,
     triggerDrum,
@@ -409,10 +473,10 @@ const BasicSynth: React.FC = () => {
 
   const captureState = useCallback(
     (): PresetState => ({
-      oscType, frequency, pwm1,
-      osc2Type, detune, osc2Enabled, pwm2,
-      osc3Type, osc3Detune, osc3Enabled, pwm3,
-      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
+      oscType, frequency, osc1Fine, pwm1,
+      osc2Type, osc2Freq, detune, osc2Enabled, pwm2,
+      osc3Type, osc3Freq, osc3Detune, osc3Enabled, pwm3,
+      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
       mixOsc1, mixOsc2, mixOsc3, mixNoise,
       channelMute, channelSolo, reverbSends, delaySends, reverbSendEnabled, delaySendEnabled,
       filterType, filterFreq, filterRes,
@@ -425,16 +489,16 @@ const BasicSynth: React.FC = () => {
       lfoType, lfoRate, lfoDepth,
       lfo2Type, lfo2Rate, lfo2Depth,
       reverbDecay, reverbWet, delayTime, delayFeedback,
-      modPatch, gatePatch,
+      modPatch, gatePatch, notePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps,
       drumEnabled, drumSampleSel, drumPitch, drumDecay, drumVol, drumRevSends, drumDelSends, drumConfigs, drumSteps,
       drumReverbDecay, drumDelayTime, drumDelayFeedback,
     }),
     [
-      oscType, frequency, pwm1,
-      osc2Type, detune, osc2Enabled, pwm2,
-      osc3Type, osc3Detune, osc3Enabled, pwm3,
-      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq,
+      oscType, frequency, osc1Fine, pwm1,
+      osc2Type, osc2Freq, detune, osc2Enabled, pwm2,
+      osc3Type, osc3Freq, osc3Detune, osc3Enabled, pwm3,
+      noiseType, noiseEnabled, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
       mixOsc1, mixOsc2, mixOsc3, mixNoise,
       channelMute, channelSolo, reverbSends, delaySends, reverbSendEnabled, delaySendEnabled,
       filterType, filterFreq, filterRes,
@@ -447,7 +511,7 @@ const BasicSynth: React.FC = () => {
       lfoType, lfoRate, lfoDepth,
       lfo2Type, lfo2Rate, lfo2Depth,
       reverbDecay, reverbWet, delayTime, delayFeedback,
-      modPatch, gatePatch,
+      modPatch, gatePatch, notePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps,
       drumEnabled, drumSampleSel, drumPitch, drumDecay, drumVol, drumRevSends, drumDelSends, drumConfigs, drumSteps,
       drumReverbDecay, drumDelayTime, drumDelayFeedback,
@@ -459,12 +523,15 @@ const BasicSynth: React.FC = () => {
     (s: Partial<PresetState>) => {
       if (s.oscType !== undefined) setOscType(s.oscType);
       if (s.frequency !== undefined) setFrequency(s.frequency);
+      if (s.osc1Fine !== undefined) setOsc1Fine(s.osc1Fine);
       if (s.pwm1 !== undefined) setPwm1(s.pwm1);
       if (s.osc2Type !== undefined) setOsc2Type(s.osc2Type);
+      if (s.osc2Freq !== undefined) setOsc2Freq(s.osc2Freq);
       if (s.detune !== undefined) setDetune(s.detune);
       if (s.osc2Enabled !== undefined) setOsc2Enabled(s.osc2Enabled);
       if (s.pwm2 !== undefined) setPwm2(s.pwm2);
       if (s.osc3Type !== undefined) setOsc3Type(s.osc3Type);
+      if (s.osc3Freq !== undefined) setOsc3Freq(s.osc3Freq);
       if (s.osc3Detune !== undefined) setOsc3Detune(s.osc3Detune);
       if (s.osc3Enabled !== undefined) setOsc3Enabled(s.osc3Enabled);
       if (s.pwm3 !== undefined) setPwm3(s.pwm3);
@@ -472,6 +539,7 @@ const BasicSynth: React.FC = () => {
       if (s.noiseEnabled !== undefined) setNoiseEnabled(s.noiseEnabled);
       if (s.noiseFilterEnabled !== undefined) setNoiseFilterEnabled(s.noiseFilterEnabled);
       if (s.noiseFilterFreq !== undefined) setNoiseFilterFreq(s.noiseFilterFreq);
+      if (s.noiseFilterRes !== undefined) setNoiseFilterRes(s.noiseFilterRes);
       if (s.mixOsc1 !== undefined) setMixOsc1(s.mixOsc1);
       if (s.mixOsc2 !== undefined) setMixOsc2(s.mixOsc2);
       if (s.mixOsc3 !== undefined) setMixOsc3(s.mixOsc3);
@@ -518,6 +586,7 @@ const BasicSynth: React.FC = () => {
       if (s.delayFeedback !== undefined) setDelayFeedback(s.delayFeedback);
       if (s.modPatch) setModPatch(s.modPatch);
       if (s.gatePatch) setGatePatch(s.gatePatch);
+      if (s.notePatch) setNotePatch(s.notePatch);
       if (s.seqConfigs) setSeqConfigs(s.seqConfigs);
       if (s.seqBpm !== undefined) setSeqBpm(s.seqBpm);
       if (s.pitchSteps) setPitchSteps(s.pitchSteps);
@@ -563,11 +632,16 @@ const BasicSynth: React.FC = () => {
       osc2Enabled: false,
       osc3Enabled: false,
       noiseEnabled: false,
-      // VCO 2 y 3: detune y PWM a 0.
+      // VCO 1/2/3: afinado fino a 0; VCO 2 y 3 a 440 Hz y PWM a 0.
+      osc1Fine: 0,
+      osc2Freq: 440,
+      osc3Freq: 440,
       detune: 0,
       pwm2: 0,
       osc3Detune: 0,
       pwm3: 0,
+      // Ruido: resonancia del pasabanda a su valor base.
+      noiseFilterRes: 2,
       // Mixer: VCO 1 a 0 dB, el resto al mínimo (-40 = silencio).
       mixOsc1: 0,
       mixOsc2: -40,
@@ -576,10 +650,19 @@ const BasicSynth: React.FC = () => {
       // Master a 0 dB; lo controla el ADSR (ADSR → VCA, limpia el resto de rutas de CV).
       volume: 0,
       modPatch: createPatch([{ source: 'adsr', dest: 'vcaGain' }]),
-      // Triggers: teclado y secuenciador 1 → ADSR.
+      // Triggers: teclado, MIDI y secuenciador 1 → ADSR y compuerta de FX.
       gatePatch: createGatePatch([
         { source: 'keyboard', dest: 'amp' },
+        { source: 'midi', dest: 'amp' },
         { source: 'seq1', dest: 'amp' },
+        { source: 'keyboard', dest: 'fx' },
+        { source: 'midi', dest: 'fx' },
+        { source: 'seq1', dest: 'fx' },
+      ]),
+      // Matriz MIDI: teclado y seq 1 → VCO 1 (sólo VCO 1 sigue la nota por defecto).
+      notePatch: createNotePatch([
+        { source: 'keyboard', dest: 'osc1' },
+        { source: 'seq1', dest: 'osc1' },
       ]),
       // ADSR: el AMT es el único al 100% (1); las envolventes AD/DAHD a 0.
       attack: 0.01,
@@ -622,9 +705,9 @@ const BasicSynth: React.FC = () => {
         velocity: 1,
         gateLen: 0.5,
       })),
-      cvSteps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
-      cv2Steps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
-      cv3Steps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, gate: false, velocity: 1, gateLen: 0.5 })),
+      cvSteps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
+      cv2Steps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
+      cv3Steps: Array.from({ length: MAX_STEPS }, () => ({ value: 0, offset: DEFAULT_PITCH_OFFSET, gate: false, velocity: 1, gateLen: 0.5 })),
       // Batería: todas las voces apagadas; pitch ×1, decay 300 ms, vol/rev/del a 0.
       drumEnabled: Array(DRUM_VOICES).fill(false),
       drumPitch: Array(DRUM_VOICES).fill(1),
@@ -658,41 +741,119 @@ const BasicSynth: React.FC = () => {
 
   const oscRef = useRef<HTMLDivElement | null>(null);
 
+  // Anclas de scroll para el nav inferior: asigna a cada .module (en orden DOM) su id de
+  // MODULE_SECTIONS y al teclado el suyo. INVARIANTE: el orden de render de los módulos debe
+  // coincidir con MODULE_SECTIONS (sin la última entrada, que es el teclado, fuera del grid).
+  useLayoutEffect(() => {
+    const moduleSections = MODULE_SECTIONS.filter((s) => s.id !== KEYBOARD_SECTION_ID);
+    const mods = document.querySelectorAll<HTMLElement>('.synth-modules .module');
+    if (mods.length !== moduleSections.length) {
+      console.warn(
+        `[BottomNav] módulos (${mods.length}) ≠ MODULE_SECTIONS (${moduleSections.length}); revisa el orden.`,
+      );
+    }
+    moduleSections.forEach((s, i) => {
+      if (mods[i]) mods[i].id = s.id;
+    });
+    const kbd = document.querySelector<HTMLElement>('.keyboard');
+    if (kbd) kbd.id = KEYBOARD_SECTION_ID;
+  }, []);
+
   // Octava actual accesible desde el manejador de teclado sin re-registrar listeners.
   const octaveRef = useRef(octave);
   octaveRef.current = octave;
 
   // Pila de notas mantenidas (prioridad a la última nota, monofónico estilo MiniMoog).
-  const heldNotesRef = useRef<{ key: string; note: string }[]>([]);
+  // Guarda la fuente de gate de cada nota para soltar la envolvente correcta.
+  const heldNotesRef = useRef<{ key: string; note: string; source: GateSourceId }[]>([]);
 
-  // API monofónica compartida por el teclado físico y el de pantalla. `id` identifica el
-  // origen (tecla) para deduplicar y soltar la nota correcta.
+  // API monofónica compartida por el teclado físico/pantalla y el MIDI. `id` identifica el
+  // origen (tecla) para deduplicar y soltar la nota correcta; `source` elige la fuente de
+  // gate (teclado/MIDI) y `velocity` (0..1) escala el ataque. Mezclar teclado y MIDI a la
+  // vez es un caso límite aceptable (motor monofónico, una sola envolvente).
   const noteOn = useCallback(
-    (id: string, note: string) => {
+    (id: string, note: string, source: GateSourceId = 'keyboard', velocity = 1) => {
       if (heldNotesRef.current.some((h) => h.key === id)) return; // ya sonando
       const wasIdle = heldNotesRef.current.length === 0;
-      heldNotesRef.current.push({ key: id, note });
-      if (wasIdle) fireGateAttack('keyboard', note);
-      else engine.setNote(note); // legato: cambia el pitch sin re-disparar
+      heldNotesRef.current.push({ key: id, note, source });
+      if (wasIdle) fireGateAttack(source, note, undefined, velocity);
+      else routeNote(source, note); // legato: cambia el pitch sin re-disparar
       setActiveNotes((prev) => ({ ...prev, [id]: note }));
     },
-    [engine, fireGateAttack],
+    [routeNote, fireGateAttack],
   );
 
   const noteOff = useCallback(
     (id: string) => {
       const idx = heldNotesRef.current.findIndex((h) => h.key === id);
       if (idx === -1) return;
-      heldNotesRef.current.splice(idx, 1);
-      if (heldNotesRef.current.length === 0) fireGateRelease('keyboard');
-      else engine.setNote(heldNotesRef.current[heldNotesRef.current.length - 1].note);
+      const [removed] = heldNotesRef.current.splice(idx, 1);
+      if (heldNotesRef.current.length === 0) fireGateRelease(removed.source);
+      else {
+        const prev = heldNotesRef.current[heldNotesRef.current.length - 1];
+        routeNote(prev.source, prev.note); // legato: vuelve a la nota anterior por su fuente
+      }
       setActiveNotes((prev) => {
         const next = { ...prev };
         delete next[id];
         return next;
       });
     },
-    [engine, fireGateRelease],
+    [routeNote, fireGateRelease],
+  );
+
+  // --- MIDI (Web MIDI API) ---
+  // El mapa CC→slot y el slot en aprendizaje se leen por ref dentro de useMidi para no
+  // re-suscribir los listeners en cada cambio.
+  const midiMapRef = useRef(midiMap);
+  midiMapRef.current = midiMap;
+  const learningRef = useRef(learningSlot);
+  learningRef.current = learningSlot;
+
+  const midi = useMidi({
+    midiMapRef,
+    learningRef,
+    onNoteOn: useCallback(
+      (note: number, velocity: number) =>
+        noteOn(`midi:${note}`, Tone.Frequency(note, 'midi').toNote(), 'midi', velocity),
+      [noteOn],
+    ),
+    onNoteOff: useCallback((note: number) => noteOff(`midi:${note}`), [noteOff]),
+    onCC: useCallback((slot: number, value: number) => engine.setCCValue(slot, value), [engine]),
+    onLearned: useCallback((slot: number, cc: number) => {
+      setMidiMap((prev) => {
+        const next = [...prev];
+        next[slot] = cc;
+        return next;
+      });
+      setLearningSlot(null);
+    }, [setMidiMap]),
+  });
+
+  const onMidiLearn = useCallback((slot: number) => setLearningSlot((s) => (s === slot ? null : slot)), []);
+  const onMidiClear = useCallback(
+    (slot: number) => {
+      setMidiMap((prev) => {
+        const next = [...prev];
+        next[slot] = null;
+        return next;
+      });
+      setLearningSlot((s) => (s === slot ? null : s));
+    },
+    [setMidiMap],
+  );
+
+  // Filas de la matriz CV: oculta los slots CC MIDI sin asignar y reetiqueta los asignados
+  // con su número de CC real (p. ej. "CC 20").
+  const modSources = useMemo<PatchSource[]>(
+    () =>
+      MOD_SOURCES.flatMap((src) => {
+        const m = /^midiCC(\d+)$/.exec(src.id);
+        if (!m) return [src];
+        const cc = midiMap[parseInt(m[1], 10) - 1];
+        return cc == null ? [] : [{ ...src, label: `CC ${cc}`, short: `${cc}` }];
+      }),
+    [midiMap],
   );
 
   const octaveDown = useCallback(() => setOctave((o) => Math.max(1, o - 1)), []);
@@ -751,6 +912,8 @@ const BasicSynth: React.FC = () => {
           setOscType={setOscType}
           frequency={frequency}
           setFrequency={setFrequency}
+          fine={osc1Fine}
+          setFine={setOsc1Fine}
           isSecondary={false}
           pwm={pwm1}
           setPwm={setPwm1}
@@ -760,11 +923,11 @@ const BasicSynth: React.FC = () => {
         <VCO
           oscType={osc2Type}
           setOscType={setOsc2Type}
-          frequency={frequency}
-          setFrequency={setFrequency}
+          frequency={osc2Freq}
+          setFrequency={setOsc2Freq}
+          fine={detune}
+          setFine={setDetune}
           isSecondary={true}
-          detune={detune}
-          setDetune={setDetune}
           enabled={osc2Enabled}
           setEnabled={setOsc2Enabled}
           pwm={pwm2}
@@ -774,28 +937,17 @@ const BasicSynth: React.FC = () => {
         <VCO
           oscType={osc3Type}
           setOscType={setOsc3Type}
-          frequency={frequency}
-          setFrequency={setFrequency}
+          frequency={osc3Freq}
+          setFrequency={setOsc3Freq}
+          fine={osc3Detune}
+          setFine={setOsc3Detune}
           isSecondary={true}
-          detune={osc3Detune}
-          setDetune={setOsc3Detune}
           enabled={osc3Enabled}
           setEnabled={setOsc3Enabled}
           pwm={pwm3}
           setPwm={setPwm3}
           label="VCO 3"
           index={3}
-        />
-
-        <Noise
-          noiseType={noiseType}
-          setNoiseType={setNoiseType}
-          enabled={noiseEnabled}
-          setEnabled={setNoiseEnabled}
-          filterEnabled={noiseFilterEnabled}
-          setFilterEnabled={setNoiseFilterEnabled}
-          filterFreq={noiseFilterFreq}
-          setFilterFreq={setNoiseFilterFreq}
         />
 
         <VCF
@@ -816,6 +968,19 @@ const BasicSynth: React.FC = () => {
           setRes={setVcf2Res}
           source={vcf2Source}
           setSource={setVcf2Source}
+        />
+
+        <Noise
+          noiseType={noiseType}
+          setNoiseType={setNoiseType}
+          enabled={noiseEnabled}
+          setEnabled={setNoiseEnabled}
+          filterEnabled={noiseFilterEnabled}
+          setFilterEnabled={setNoiseFilterEnabled}
+          filterFreq={noiseFilterFreq}
+          setFilterFreq={setNoiseFilterFreq}
+          filterRes={noiseFilterRes}
+          setFilterRes={setNoiseFilterRes}
         />
         <VCA
           volume={volume}
@@ -933,13 +1098,30 @@ const BasicSynth: React.FC = () => {
             />
         </div>
 
-        
-        <PatchMatrix
-          patch={modPatch}
-          setPatch={setModPatch}
-          gatePatch={gatePatch}
-          setGatePatch={setGatePatch}
-        />
+        {/* Matriz de modulación (2/3) + control MIDI (1/3) comparten una fila del grid. */}
+        <div className="matrix-row">
+          <PatchMatrix
+            patch={modPatch}
+            setPatch={setModPatch}
+            gatePatch={gatePatch}
+            setGatePatch={setGatePatch}
+            notePatch={notePatch}
+            setNotePatch={setNotePatch}
+            modSources={modSources}
+          />
+
+          <Midi
+            supported={midi.supported}
+            enabled={midi.enabled}
+            deviceNames={midi.deviceNames}
+            activity={midi.activity}
+            midiMap={midiMap}
+            learningSlot={learningSlot}
+            onEnable={midi.enable}
+            onLearn={onMidiLearn}
+            onClear={onMidiClear}
+          />
+        </div>
 
         <Sequencer
           configs={seqConfigs}
@@ -961,6 +1143,9 @@ const BasicSynth: React.FC = () => {
         />
 
         <Drums
+          running={seqRunning}
+          setRunning={setSeqRunning}
+          onReset={resetSequencer}
           pitch={drumPitch}
           setPitch={setDrumPitchAt}
           decay={drumDecay}
@@ -998,6 +1183,13 @@ const BasicSynth: React.FC = () => {
         noteOn={noteOn}
         noteOff={noteOff}
         activeNotes={activeNotes}
+      />
+
+      <BottomNav
+        channelMute={channelMute}
+        onToggleMute={onToggleMute}
+        drumEnabled={drumEnabled}
+        onToggleDrumEnabled={toggleDrumEnabled}
       />
 
     </div>

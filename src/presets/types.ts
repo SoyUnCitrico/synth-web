@@ -1,6 +1,7 @@
 import type * as Tone from 'tone';
 import type { ModPatch } from '../audio/cv/patch';
 import type { GatePatch } from '../audio/cv/gates';
+import type { NotePatch } from '../audio/cv/notes';
 import type { NoiseType, Vcf2Type, Vcf2Source } from '../audio/useSynthEngine';
 import type { SeqConfig, PitchStep, CvStep, DrumStep } from '../audio/sequencer/types';
 
@@ -17,14 +18,17 @@ export interface PresetState {
   // --- OSC 1 ---
   oscType: Tone.ToneOscillatorType;
   frequency: number;
+  osc1Fine: number;
   pwm1: number;
   // --- OSC 2 ---
   osc2Type: Tone.ToneOscillatorType;
+  osc2Freq: number;
   detune: number;
   osc2Enabled: boolean;
   pwm2: number;
   // --- OSC 3 ---
   osc3Type: Tone.ToneOscillatorType;
+  osc3Freq: number;
   osc3Detune: number;
   osc3Enabled: boolean;
   pwm3: number;
@@ -33,6 +37,7 @@ export interface PresetState {
   noiseEnabled: boolean;
   noiseFilterEnabled: boolean;
   noiseFilterFreq: number;
+  noiseFilterRes: number;
   // --- Mixer ---
   mixOsc1: number;
   mixOsc2: number;
@@ -89,6 +94,7 @@ export interface PresetState {
   // --- Matriz de modulación ---
   modPatch: ModPatch;
   gatePatch: GatePatch;
+  notePatch: NotePatch;
   // --- Secuenciador (4 secuenciadores independientes) ---
   seqConfigs: SeqConfig[];
   seqBpm: number;

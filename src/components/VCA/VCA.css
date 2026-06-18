@@ -3,7 +3,7 @@
 /* Mixer de canales */
 .mixer {
   display: flex;
-  flex-direction: flex;
+  flex-direction: row;
   gap: 2rem;
   padding: 1rem;
   border: 1px solid #000;
@@ -191,4 +191,18 @@
   position: absolute;
   inset: 0;
   background: repeating-linear-gradient(0deg, transparent 0 6px, rgba(0, 0, 0, 0.72) 6px 8px);
+}
+
+/* Móvil: las secciones internas (VCA + drums) se apilan en columna. */
+@media (max-width: 768px) {
+  .mixer {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .mixer-drums-controls {
+    margin-left: 0;
+    padding: 0.85rem 0 0;
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
 }

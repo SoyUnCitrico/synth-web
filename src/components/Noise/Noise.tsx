@@ -13,6 +13,8 @@ interface NoiseProps {
   setFilterEnabled: (enabled: boolean) => void;
   filterFreq: number;
   setFilterFreq: (freq: number) => void;
+  filterRes: number;
+  setFilterRes: (res: number) => void;
 }
 
 const NOISE_TYPES: { value: NoiseType; label: string }[] = [
@@ -32,6 +34,8 @@ const Noise: React.FC<NoiseProps> = ({
   setFilterEnabled,
   filterFreq,
   setFilterFreq,
+  filterRes,
+  setFilterRes,
 }) => {
   return (
     <div className="module noise-module">
@@ -78,16 +82,29 @@ const Noise: React.FC<NoiseProps> = ({
             />
             Filtro pasabanda
           </label>
-          {/* Perilla con escala logarítmica (20 Hz – 20 kHz) para el centro del pasabanda. */}
-          <Knob
-            label="Centro"
-            value={filterFreq}
-            scale={AUDIO_FREQ_SCALE}
-            step={1}
-            display={`${filterFreq.toFixed(0)} Hz`}
-            onChange={setFilterFreq}
-            disabled={!enabled || !filterEnabled}
-          />
+          <div className="noise-filter-knobs">
+            {/* Perilla con escala logarítmica (20 Hz – 20 kHz) para el centro del pasabanda. */}
+            <Knob
+              label="Centro"
+              value={filterFreq}
+              scale={AUDIO_FREQ_SCALE}
+              step={1}
+              display={`${filterFreq.toFixed(0)} Hz`}
+              onChange={setFilterFreq}
+              disabled={!enabled || !filterEnabled}
+            />
+            {/* Resonancia (Q) del pasabanda. Control directo, fuera de la matriz. */}
+            <Knob
+              label="Reso"
+              value={filterRes}
+              min={0.1}
+              max={20}
+              step={0.1}
+              display={filterRes.toFixed(1)}
+              onChange={setFilterRes}
+              disabled={!enabled || !filterEnabled}
+            />
+          </div>
         </div>
       </div>
     </div>

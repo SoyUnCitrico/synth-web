@@ -11,6 +11,10 @@ import {
 import './Drums.css';
 
 interface DrumsProps {
+  // Transporte compartido (mismo reloj que el header y el secuenciador).
+  running: boolean;
+  setRunning: (running: boolean) => void;
+  onReset: () => void;
   pitch: number[];
   setPitch: (i: number, v: number) => void;
   decay: number[];
@@ -50,6 +54,9 @@ const DIRECTIONS: { value: SeqDirection; label: string }[] = [
 const stepMarker = (i: number): string => (i % 8 === 0 ? 'bar' : i % 4 === 0 ? 'beat' : '');
 
 const Drums: React.FC<DrumsProps> = ({
+  running,
+  setRunning,
+  onReset,
   pitch,
   setPitch,
   decay,
@@ -80,6 +87,17 @@ const Drums: React.FC<DrumsProps> = ({
     <div className="module drums-module">
       <div className="module-header">
         <h2>Batería</h2>
+        <div className="seq-header-controls">
+          <button className="seq-btn seq-btn-warning" onClick={onReset}>
+            ⟲ RST
+          </button>
+          <button
+            className={`seq-btn seq-transport ${running ? 'active' : ''}`}
+            onClick={() => setRunning(!running)}
+          >
+            {running ? '■ STOP' : '▶ PLAY'}
+          </button>
+        </div>
       </div>
       <div className="module-controls">
         {/* Efectos propios de la batería (independientes de los del sinte). */}
