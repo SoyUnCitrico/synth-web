@@ -99,6 +99,9 @@
   box-shadow: 0 0 8px rgba(61, 255, 149, 0.7);
 }
 
+.sends {
+  margin-top: -1rem;
+}
 /* Columnas de envío (Reverb / Delay): activación + una perilla por canal. */
 .send-row {
   display: flex;
@@ -125,7 +128,7 @@
 }
 
 .master-section {
-  margin-top: 0.5rem;
+  margin-top: -1rem;
 }
 
 .volume-display {

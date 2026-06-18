@@ -187,6 +187,7 @@
 .module-controls.big {
   gap: 4rem;
   margin-top: -0.5rem;
+  justify-content: space-around;
 } 
 
 .module-controls.disabled {

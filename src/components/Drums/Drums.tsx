@@ -125,7 +125,8 @@ const Drums: React.FC<DrumsProps> = ({
                 </label>
               </div>
 
-              <div className="drum-controls">
+              <div className="drum-voice-row">
+                <div className="drum-controls">
                 <Knob
                   label="Pitch" value={pitch[v] ?? 1} min={0.25} max={4} step={0.01}
                   display={`×${(pitch[v] ?? 1).toFixed(2)}`} onChange={(x) => setPitch(v, x)}
@@ -146,50 +147,53 @@ const Drums: React.FC<DrumsProps> = ({
                   label="Dly" value={delSends[v] ?? 0} min={0} max={1} step={0.01}
                   display={`${((delSends[v] ?? 0) * 100).toFixed(0)}%`} onChange={(x) => setDelSend(v, x)}
                 />
-              </div>
+                </div>
 
-              <div className="drum-seq-config">
-                <label className="drum-cfg-item">
-                  Pasos: {cfg.steps}
-                  <input
-                    type="range" min={0} max={MAX_STEPS} step={1} value={cfg.steps}
-                    className="control-slider"
-                    onChange={(e) => setConfig(v, { steps: parseInt(e.target.value, 10) })}
-                  />
-                </label>
-                <select
-                  className="control-select"
-                  value={cfg.clock}
-                  aria-label="Reloj"
-                  onChange={(e) => setConfig(v, { clock: e.target.value })}
-                >
-                  {CLOCK_OPTIONS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-                <select
-                  className="control-select"
-                  value={cfg.direction}
-                  aria-label="Dirección"
-                  onChange={(e) => setConfig(v, { direction: e.target.value as SeqDirection })}
-                >
-                  {DIRECTIONS.map((d) => (
-                    <option key={d.value} value={d.value}>{d.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="seq-steps">
-                {voiceSteps.slice(0, cfg.steps).map((s, i) => (
-                  <div key={i} className={`seq-step ${stepMarker(i)} ${currentSteps[v] === i ? 'playing' : ''}`}>
-                    <button
-                      className={`seq-gate ${s.gate ? 'on' : ''}`}
-                      onClick={() => toggleStep(v, i)}
-                      aria-label={`${label} paso ${i + 1}`}
-                      aria-pressed={s.gate}
-                    />
+                <div className="drum-seq-inputs">
+                  <div className="drum-seq-config">
+                    <label className="drum-cfg-item">
+                      Pasos: {cfg.steps}
+                      <input
+                        type="range" min={0} max={MAX_STEPS} step={1} value={cfg.steps}
+                        className="control-slider"
+                        onChange={(e) => setConfig(v, { steps: parseInt(e.target.value, 10) })}
+                      />
+                    </label>
+                    <select
+                      className="control-select"
+                      value={cfg.clock}
+                      aria-label="Reloj"
+                      onChange={(e) => setConfig(v, { clock: e.target.value })}
+                    >
+                      {CLOCK_OPTIONS.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="control-select"
+                      value={cfg.direction}
+                      aria-label="Dirección"
+                      onChange={(e) => setConfig(v, { direction: e.target.value as SeqDirection })}
+                    >
+                      {DIRECTIONS.map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
+
+                  <div className="seq-steps">
+                    {voiceSteps.slice(0, cfg.steps).map((s, i) => (
+                      <div key={i} className={`seq-step ${stepMarker(i)} ${currentSteps[v] === i ? 'playing' : ''}`}>
+                        <button
+                          className={`seq-gate ${s.gate ? 'on' : ''}`}
+                          onClick={() => toggleStep(v, i)}
+                          aria-label={`${label} paso ${i + 1}`}
+                          aria-pressed={s.gate}
+                        />
+                      </div> 
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );

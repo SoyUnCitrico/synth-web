@@ -94,7 +94,8 @@
 }
 
 .seq-steps {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(16, minmax(26px, 1fr));
   gap: 4px;
   overflow-x: auto;
   padding-bottom: 4px;
