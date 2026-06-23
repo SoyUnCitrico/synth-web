@@ -10,7 +10,10 @@ export type NoiseType = 'white' | 'pink' | 'brown';
 // VCF 2: filtro insertable en serie sobre una sola voz (su propio routeo, fuera de la
 // matriz). Sólo 3 tipos, todos de 2 polos (-12 dB/oct).
 export type Vcf2Type = 'lowpass' | 'highpass' | 'bandpass';
-export type Vcf2Source = 'none' | 'vco1' | 'vco2' | 'vco3';
+export type Vcf2Source = 'none' | 'vco1' | 'vco2' | 'vco3' | 'vco4';
+// Curva de las etapas de una envolvente: lineal (recta) o exponencial (logarítmica, como un
+// sinte analógico). Aplica a attack/decay/release a la vez.
+export type EnvCurve = 'linear' | 'exponential';
 
 // Rangos de modulación a profundidad/cantidad máxima (depth = 1). Sirven como
 // `unitPerAmount` de los destinos de la matriz: un depth de 1 produce este desvío.
@@ -25,6 +28,10 @@ const LFO_FILTER_RANGE_HZ = 6000; // ±6 kHz (pasabanda del ruido, lineal en Hz)
 // A -40 dB, dbToGain(-40) ≈ 0.01 todavía sonaría (fuga), así que se fuerza la ganancia a 0.
 const VOL_MUTE_DB = -40;
 const dbToGainMuted = (db: number): number => (db <= VOL_MUTE_DB ? 0 : Tone.dbToGain(db));
+
+// Defensa: una frecuencia no finita o ≤ 0 (p. ej. un input vacío que quedó como NaN/null en
+// localStorage) cuelga/ensucia el grafo de Tone.js. Se reemplaza por un valor por defecto.
+const safeFreq = (v: number, fallback: number): number => (Number.isFinite(v) && v > 0 ? v : fallback);
 
 /**
  * Aplica la forma de onda a un OmniOscillator. La onda "cuadrada" se implementa con un
@@ -45,6 +52,24 @@ function applyWaveform(
 }
 
 /**
+ * Aplica la forma de onda a un oscilador FAT (VCO 3): antepone "fat" al tipo base
+ * (p. ej. 'sawtooth' → 'fatsawtooth') y fija el número de voces (count) y su separación en
+ * cents (spread). El count se capa fuera (1..5) para no disparar la CPU en móvil. Los
+ * osciladores fat no soportan pulso/PWM (de ahí que el VCO 3 no tenga PWM).
+ */
+function applyFatWaveform(
+  osc: Tone.OmniOscillator<Tone.FatOscillator>,
+  type: Tone.ToneOscillatorType,
+  spread: number,
+  count: number,
+) {
+  const fatType = `fat${type}` as Tone.ToneOscillatorType;
+  if (osc.type !== fatType) osc.type = fatType;
+  osc.count = count;
+  osc.spread = spread;
+}
+
+/**
  * Parámetros de control del sintetizador. Cada campo se sincroniza de forma
  * granular con su nodo de Tone.js (ver los efectos de abajo), de modo que mover
  * un control sólo actualiza ese parámetro y nunca reconstruye el grafo de audio.
@@ -59,17 +84,21 @@ export interface SynthParams {
   osc2Type: Tone.ToneOscillatorType;
   osc2Freq: number; // frecuencia base de OSC 2 (Hz, independiente)
   detune: number; // afinado fino de OSC 2 (cents, ±200)
-  osc2Enabled: boolean;
   pwm2: number; // ancho de pulso de OSC 2 (-1..1)
-  // OSC 3
+  // OSC 3 (FatOscillator: súper-saw/unísono). Sin PWM.
   osc3Type: Tone.ToneOscillatorType;
   osc3Freq: number; // frecuencia base de OSC 3 (Hz, independiente)
   osc3Detune: number; // afinado fino de OSC 3 (cents, ±200)
-  osc3Enabled: boolean;
-  pwm3: number; // ancho de pulso de OSC 3 (-1..1)
+  osc3Spread: number; // separación entre las voces fat (cents)
+  osc3Count: number; // nº de voces del fat (1..5)
+  // OSC 4 (FM: Tone.FMOscillator). Voz completa: tocable y ruteable.
+  osc4Type: Tone.ToneOscillatorType; // onda portadora
+  osc4Freq: number; // frecuencia base de OSC 4 (Hz, independiente)
+  osc4Fine: number; // afinado fino de OSC 4 (cents, ±200)
+  fmHarmonicity: number; // razón moduladora/portadora (base; la matriz suma encima)
+  fmModIndex: number; // índice de modulación FM (base; la matriz suma encima)
   // Generador de ruido
   noiseType: NoiseType;
-  noiseEnabled: boolean;
   noiseFilterEnabled: boolean; // filtro pasabanda a la salida del ruido
   noiseFilterFreq: number; // Hz (centro del pasabanda)
   noiseFilterRes: number; // Q del pasabanda del ruido (fuera de la matriz)
@@ -77,11 +106,16 @@ export interface SynthParams {
   mixOsc1: number;
   mixOsc2: number;
   mixOsc3: number;
+  mixOsc4: number; // nivel del VCO 4 (FM)
   mixNoise: number;
-  // Mute/solo por canal (índice 0..3 = VCO1, VCO2, VCO3, Ruido).
-  channelMute: boolean[];
+  // On/off por canal (índice 0..4 = VCO1, VCO2, VCO3, VCO4-FM, Ruido). true = voz encendida.
+  // Fuente única de verdad: el switch del VCO/Ruido, el botón del mixer y el chip del BottomNav
+  // escriben este array. El Solo es aparte (channelSolo) y opera por encima.
+  channelEnabled: boolean[];
   channelSolo: boolean[];
-  // Envíos por canal hacia los efectos (0..1), índice 0..3 como arriba.
+  // PAN por canal (-1 izq .. 0 centro .. 1 der), índice 0..4 como arriba.
+  channelPan: number[];
+  // Envíos por canal hacia los efectos (0..1), índice 0..4 como arriba.
   reverbSends: number[];
   delaySends: number[];
   reverbSendEnabled: boolean;
@@ -102,22 +136,26 @@ export interface SynthParams {
   ad1Attack: number;
   ad1Decay: number;
   ad1Depth: number; // -1 a 1 (cantidad de la fuente ad1 en la matriz)
+  ad1Curve: EnvCurve; // forma de las rampas (lineal/exponencial)
   // Envolvente AD 2 (fuente de modulación de la matriz)
   ad2Attack: number;
   ad2Decay: number;
   ad2Depth: number; // -1 a 1 (cantidad de la fuente ad2 en la matriz)
+  ad2Curve: EnvCurve;
   // Envolvente DAHD (Delay-Attack-Hold-Decay; fuente de modulación de la matriz)
   dahdDelay: number; // s (retardo antes del ataque)
   dahdAttack: number; // s
   dahdHold: number; // s (sostiene el pico antes del decay)
   dahdDecay: number; // s
   dahdDepth: number; // -1 a 1 (cantidad de la fuente dahd en la matriz)
+  dahdCurve: EnvCurve;
   // Envolvente de amplitud (ADSR). También es fuente de la matriz con su propia cantidad.
   attack: number;
   decay: number;
   sustain: number;
   release: number;
   adsrDepth: number; // -1 a 1 (cantidad/AMT de la fuente adsr en la matriz)
+  adsrCurve: EnvCurve; // forma de las rampas (lineal/exponencial)
   // Amplificador maestro
   volume: number; // en dB
   // LFO 1 (modulación)
@@ -156,10 +194,10 @@ export interface SynthEngine {
   envAttack: (dest: GateDestId, time?: number, velocity?: number) => void;
   /** Release de UNA envolvente (usado por los destinos tipo gate, p. ej. el ADSR). */
   envRelease: (dest: GateDestId, time?: number) => void;
-  /** Fija el pitch (frecuencia) de UN oscilador (0=VCO1, 1=VCO2, 2=VCO3) sin re-disparar la
-   *  envolvente. El ruteo nota→VCO lo decide la matriz MIDI; aquí sólo se escribe el VCO
-   *  indicado (parafónico: cada VCO independiente). */
-  setOscNote: (oscIndex: 0 | 1 | 2, note: string, time?: number) => void;
+  /** Fija el pitch (frecuencia) de UN oscilador (0=VCO1, 1=VCO2, 2=VCO3, 3=VCO4-FM) sin
+   *  re-disparar la envolvente. El ruteo nota→VCO lo decide la matriz MIDI; aquí sólo se
+   *  escribe el VCO indicado (parafónico: cada VCO independiente). */
+  setOscNote: (oscIndex: 0 | 1 | 2 | 3, note: string, time?: number) => void;
   /** Seguimiento de teclado sobre un filtro: desplaza su cutoff RELATIVO a la perilla, vía
    *  el detune (cents) del filtro (C4 = neutral). 'filter1'=VCF1, 'vcf2'=VCF2,
    *  'noiseFilter'=pasabanda del ruido. */
@@ -209,14 +247,19 @@ export interface SynthEngine {
 export function useSynthEngine(params: SynthParams): SynthEngine {
   const osc1Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
   const osc2Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
-  const osc3Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
+  const osc3Ref = useRef<Tone.OmniOscillator<Tone.FatOscillator> | null>(null);
+  // VCO 4: oscilador FM (portadora + moduladora internas). 5ª voz.
+  const osc4Ref = useRef<Tone.FMOscillator | null>(null);
   const noiseRef = useRef<Tone.Noise | null>(null);
   const noiseFilterRef = useRef<Tone.Filter | null>(null);
   // Mixer: una ganancia de NIVEL por canal (la modula la matriz CV vía oscNLevel/noiseLevel).
   const ch1Ref = useRef<Tone.Gain | null>(null);
   const ch2Ref = useRef<Tone.Gain | null>(null);
   const ch3Ref = useRef<Tone.Gain | null>(null);
+  const ch4Ref = useRef<Tone.Gain | null>(null); // nivel del VCO 4 (FM)
   const chNRef = useRef<Tone.Gain | null>(null);
+  // PAN por canal (índice 0..4): chOut[i] → panner[i] → filtro + envíos.
+  const pannerRefs = useRef<Tone.Panner[]>([]);
   // Nodo de MUTE por canal (0..3), DESPUÉS del nivel. Conexiones permanentes a filtro +
   // envíos; el silencio del mixer se hace poniendo su ganancia a 0. Como está después del
   // nivel (que es lo que modula la matriz CV), mutear aquí silencia de verdad —seco y
@@ -242,7 +285,13 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   // de control y automatización manual por disparo (one-shot). `dahdShapeRef` guarda los
   // tiempos vivos para leerlos al disparar sin recrear el callback.
   const dahdSigRef = useRef<Tone.Signal<'number'> | null>(null);
-  const dahdShapeRef = useRef({ delay: 0, attack: 0.01, hold: 0.1, decay: 0.3 });
+  const dahdShapeRef = useRef<{
+    delay: number;
+    attack: number;
+    hold: number;
+    decay: number;
+    curve: EnvCurve;
+  }>({ delay: 0, attack: 0.01, hold: 0.1, decay: 0.3, curve: 'linear' });
   // Ganancia maestra: hace de VCA. Sin fuente en la matriz su base es el volumen; con
   // alguna fuente (p. ej. ADSR) su base es 0 y la fuente la abre (master = volumen pico).
   const gainRef = useRef<Tone.Gain | null>(null);
@@ -278,16 +327,22 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
 
   // --- Construcción del grafo (una sola vez) ---
   useEffect(() => {
-    const osc1 = new Tone.OmniOscillator<Tone.PulseOscillator>(params.frequency, 'sine');
+    const osc1 = new Tone.OmniOscillator<Tone.PulseOscillator>(safeFreq(params.frequency, 440), 'sine');
     applyWaveform(osc1, params.oscType, params.pwm);
     osc1.detune.value = params.osc1Fine; // afinado fino (cents); la matriz suma encima
     // VCO 2 y 3: cada uno con su propia frecuencia base; el detune es su afinado fino (cents).
-    const osc2 = new Tone.OmniOscillator<Tone.PulseOscillator>(params.osc2Freq, 'sine');
+    const osc2 = new Tone.OmniOscillator<Tone.PulseOscillator>(safeFreq(params.osc2Freq, 440), 'sine');
     applyWaveform(osc2, params.osc2Type, params.pwm2);
     osc2.detune.value = params.detune;
-    const osc3 = new Tone.OmniOscillator<Tone.PulseOscillator>(params.osc3Freq, 'sine');
-    applyWaveform(osc3, params.osc3Type, params.pwm3);
+    // VCO 3: FatOscillator (unísono/súper-saw). Sin PWM; spread/count en su lugar.
+    const osc3 = new Tone.OmniOscillator<Tone.FatOscillator>(safeFreq(params.osc3Freq, 440), 'fatsawtooth');
+    applyFatWaveform(osc3, params.osc3Type, params.osc3Spread, params.osc3Count);
     osc3.detune.value = params.osc3Detune;
+    // VCO 4: oscilador FM. harmonicity/modulationIndex son señales (destinos de la matriz).
+    const osc4 = new Tone.FMOscillator(safeFreq(params.osc4Freq, 440), params.osc4Type);
+    osc4.harmonicity.value = params.fmHarmonicity;
+    osc4.modulationIndex.value = params.fmModIndex;
+    osc4.detune.value = params.osc4Fine;
     const noise = new Tone.Noise(params.noiseType);
     // Filtro pasabanda opcional a la salida del ruido (activable por checkbox).
     const noiseFilter = new Tone.Filter({
@@ -299,11 +354,12 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     const ch1 = new Tone.Gain(Tone.dbToGain(params.mixOsc1));
     const ch2 = new Tone.Gain(Tone.dbToGain(params.mixOsc2));
     const ch3 = new Tone.Gain(Tone.dbToGain(params.mixOsc3));
+    const ch4 = new Tone.Gain(Tone.dbToGain(params.mixOsc4));
     const chN = new Tone.Gain(Tone.dbToGain(params.mixNoise));
 
     const filter = new Tone.Filter({
       type: params.filterType,
-      frequency: params.filterFreq,
+      frequency: safeFreq(params.filterFreq, 20000),
       Q: params.filterRes,
     });
 
@@ -323,6 +379,9 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       decay: params.decay,
       sustain: params.sustain,
       release: params.release,
+      attackCurve: params.adsrCurve,
+      decayCurve: params.adsrCurve,
+      releaseCurve: params.adsrCurve,
     });
     // Ganancia maestra = VCA. Base la fija el efecto de la matriz (volumen o 0 según haya
     // fuentes conectadas a vcaGain).
@@ -367,12 +426,18 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       decay: params.ad1Decay,
       sustain: 0,
       release: 0.05,
+      attackCurve: params.ad1Curve,
+      decayCurve: params.ad1Curve,
+      releaseCurve: params.ad1Curve,
     });
     const ad2 = new Tone.Envelope({
       attack: params.ad2Attack,
       decay: params.ad2Decay,
       sustain: 0,
       release: 0.05,
+      attackCurve: params.ad2Curve,
+      decayCurve: params.ad2Curve,
+      releaseCurve: params.ad2Curve,
     });
 
     // DAHD: señal de control (0..pico) disparada por automatización manual. Es una fuente
@@ -383,6 +448,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       attack: params.dahdAttack,
       hold: params.dahdHold,
       decay: params.dahdDecay,
+      curve: params.dahdCurve,
     };
 
     // Señales de CV del secuenciador (canales 2 y 3). El secuenciador las actualiza por
@@ -420,7 +486,8 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
 
     // Envíos por canal del SINTE (post-fader) → compuerta del sinte → efecto. Cada envío
     // recibe su canal a través de su nodo de mute (chOut), abajo.
-    const channels = [ch1, ch2, ch3, chN];
+    // Orden de canales: VCO1, VCO2, VCO3, VCO4-FM, Ruido (el ruido pasa al índice 4).
+    const channels = [ch1, ch2, ch3, ch4, chN];
     const reverbSends = channels.map((_, i) => new Tone.Gain(params.reverbSends[i] ?? 0));
     const delaySends = channels.map((_, i) => new Tone.Gain(params.delaySends[i] ?? 0));
     reverbSends.forEach((s) => s.connect(synthRevGate));
@@ -428,18 +495,20 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     synthRevGate.connect(reverb);
     synthDelGate.connect(delay);
 
-    // Nodo de mute por canal: ch (nivel) → chOut (mute) → filtro + ambos envíos. Conexiones
-    // PERMANENTES; mutear/solo/deshabilitar sólo cambia chOut.gain (0/1). El efecto de ruteo
-    // de canal mantiene ese valor. Estado inicial según habilitación/mute/solo de arranque.
+    // Nodo de mute por canal: ch (nivel) → chOut (mute) → panner (PAN) → filtro + ambos envíos.
+    // Conexiones PERMANENTES; mutear/solo/deshabilitar sólo cambia chOut.gain (0/1). El panner
+    // coloca el canal en el estéreo (seco y envíos comparten posición). El efecto de ruteo de
+    // canal mantiene el gain de mute. Estado inicial según habilitación/mute/solo de arranque.
     const anySolo0 = params.channelSolo.some(Boolean);
-    const active0 = [true, params.osc2Enabled, params.osc3Enabled, params.noiseEnabled];
+    const panners = channels.map((_, i) => new Tone.Panner(params.channelPan[i] ?? 0));
     const chOut = channels.map((ch, i) => {
-      const on = active0[i] && !params.channelMute[i] && !(anySolo0 && !params.channelSolo[i]);
+      const on = (params.channelEnabled[i] ?? false) && !(anySolo0 && !params.channelSolo[i]);
       const g = new Tone.Gain(on ? 1 : 0);
       ch.connect(g);
-      g.connect(filter);
-      g.connect(reverbSends[i]);
-      g.connect(delaySends[i]);
+      g.connect(panners[i]);
+      panners[i].connect(filter);
+      panners[i].connect(reverbSends[i]);
+      panners[i].connect(delaySends[i]);
       return g;
     });
 
@@ -498,6 +567,10 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     matrix.registerDest({ id: 'osc1Detune', param: osc1.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc2Detune', param: osc2.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc3Detune', param: osc3.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
+    matrix.registerDest({ id: 'osc4Detune', param: osc4.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
+    // Timbre del VCO 4 (FM): índice de modulación (brillo) y armonicidad (razón de frecuencias).
+    matrix.registerDest({ id: 'fmIndex', param: osc4.modulationIndex, unitPerAmount: 15 });
+    matrix.registerDest({ id: 'fmHarmonicity', param: osc4.harmonicity, unitPerAmount: 4 });
     // Cutoff modulado por el DETUNE del filtro (cents) → exponencial/por octavas, como un
     // VCF analógico. La frecuencia base la fija el usuario (filter.frequency, Hz).
     matrix.registerDest({ id: 'filterFreq', param: filter.detune, unitPerAmount: FILTER_MOD_RANGE_CENTS });
@@ -508,6 +581,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     matrix.registerDest({ id: 'osc1Level', param: ch1.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'osc2Level', param: ch2.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'osc3Level', param: ch3.gain, unitPerAmount: 1 });
+    matrix.registerDest({ id: 'osc4Level', param: ch4.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'noiseLevel', param: chN.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'noiseFilterFreq', param: noiseFilter.frequency, unitPerAmount: LFO_FILTER_RANGE_HZ });
 
@@ -515,6 +589,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc1.start();
     osc2.start();
     osc3.start();
+    osc4.start();
     noise.start();
     lfo.start();
     lfo2.start();
@@ -522,13 +597,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc1Ref.current = osc1;
     osc2Ref.current = osc2;
     osc3Ref.current = osc3;
+    osc4Ref.current = osc4;
     noiseRef.current = noise;
     noiseFilterRef.current = noiseFilter;
     ch1Ref.current = ch1;
     ch2Ref.current = ch2;
     ch3Ref.current = ch3;
+    ch4Ref.current = ch4;
     chNRef.current = chN;
     chOutRefs.current = chOut;
+    pannerRefs.current = panners;
     lfoRef.current = lfo;
     lfo2Ref.current = lfo2;
     matrixRef.current = matrix;
@@ -565,13 +643,16 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
       osc1.dispose();
       osc2.dispose();
       osc3.dispose();
+      osc4.dispose();
       noise.dispose();
       noiseFilter.dispose();
       ch1.dispose();
       ch2.dispose();
       ch3.dispose();
+      ch4.dispose();
       chN.dispose();
       chOut.forEach((g) => g.dispose());
+      panners.forEach((p) => p.dispose());
       matrix.dispose();
       lfo.dispose();
       lfo2.dispose();
@@ -619,7 +700,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   // Frecuencia base por oscilador (independiente). El ruteo de nota de la matriz MIDI puede
   // sobrescribir el pitch por VCO cuando hay nota; esta es la base en reposo / sin ruteo.
   useEffect(() => {
-    osc1Ref.current?.frequency.setValueAtTime(params.frequency, Tone.now());
+    osc1Ref.current?.frequency.setValueAtTime(safeFreq(params.frequency, 440), Tone.now());
   }, [params.frequency]);
 
   // OSC 1: afinado fino (cents). Valor intrínseco de osc.detune; la matriz suma encima.
@@ -633,7 +714,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   }, [params.osc2Type, params.pwm2]);
 
   useEffect(() => {
-    osc2Ref.current?.frequency.setValueAtTime(params.osc2Freq, Tone.now());
+    osc2Ref.current?.frequency.setValueAtTime(safeFreq(params.osc2Freq, 440), Tone.now());
   }, [params.osc2Freq]);
 
   // OSC 2: afinado fino (cents).
@@ -641,13 +722,13 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc2Ref.current?.detune.setValueAtTime(params.detune, Tone.now());
   }, [params.detune]);
 
-  // OSC 3: forma de onda + PWM
+  // OSC 3 (fat): forma de onda + nº de voces (count) + separación (spread).
   useEffect(() => {
-    if (osc3Ref.current) applyWaveform(osc3Ref.current, params.osc3Type, params.pwm3);
-  }, [params.osc3Type, params.pwm3]);
+    if (osc3Ref.current) applyFatWaveform(osc3Ref.current, params.osc3Type, params.osc3Spread, params.osc3Count);
+  }, [params.osc3Type, params.osc3Spread, params.osc3Count]);
 
   useEffect(() => {
-    osc3Ref.current?.frequency.setValueAtTime(params.osc3Freq, Tone.now());
+    osc3Ref.current?.frequency.setValueAtTime(safeFreq(params.osc3Freq, 440), Tone.now());
   }, [params.osc3Freq]);
 
   // OSC 3: afinado fino (cents).
@@ -655,25 +736,47 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     osc3Ref.current?.detune.setValueAtTime(params.osc3Detune, Tone.now());
   }, [params.osc3Detune]);
 
+  // OSC 4 (FM): onda portadora.
+  useEffect(() => {
+    if (osc4Ref.current) osc4Ref.current.type = params.osc4Type;
+  }, [params.osc4Type]);
+
+  useEffect(() => {
+    osc4Ref.current?.frequency.setValueAtTime(safeFreq(params.osc4Freq, 440), Tone.now());
+  }, [params.osc4Freq]);
+
+  // OSC 4: afinado fino (cents). La matriz suma encima vía osc4Detune.
+  useEffect(() => {
+    osc4Ref.current?.detune.setValueAtTime(params.osc4Fine, Tone.now());
+  }, [params.osc4Fine]);
+
+  // OSC 4: armonicidad e índice de modulación FM (base; la matriz suma encima).
+  useEffect(() => {
+    osc4Ref.current?.harmonicity.setValueAtTime(params.fmHarmonicity, Tone.now());
+  }, [params.fmHarmonicity]);
+
+  useEffect(() => {
+    osc4Ref.current?.modulationIndex.setValueAtTime(params.fmModIndex, Tone.now());
+  }, [params.fmModIndex]);
+
   // Ruido
   useEffect(() => {
     if (noiseRef.current) noiseRef.current.type = params.noiseType;
   }, [params.noiseType]);
 
-  // Silencio de canales del mixer (mute por nodo chOut, ganancia 0/1). Un canal suena si su
-  // fuente está habilitada (ch1 siempre; ch2/ch3/chN por su *Enabled) y no está muteado ni
-  // excluido por un solo activo en otro canal. Como chOut va DESPUÉS del nivel (lo que modula
-  // la matriz CV), poner 0 silencia de verdad —seco y envíos— sin desconectar nodos.
+  // Silencio de canales del mixer (on/off por nodo chOut, ganancia 0/1). Un canal suena si su
+  // voz está encendida (channelEnabled) y no está excluida por un solo activo en otro canal.
+  // Como chOut va DESPUÉS del nivel (lo que modula la matriz CV), poner 0 silencia de verdad
+  // —seco y envíos— sin desconectar nodos.
   useEffect(() => {
-    const enabled = [true, params.osc2Enabled, params.osc3Enabled, params.noiseEnabled];
     const anySolo = params.channelSolo.some(Boolean);
     const now = Tone.now();
     chOutRefs.current.forEach((g, i) => {
       if (!g) return;
-      const active = enabled[i] && !params.channelMute[i] && !(anySolo && !params.channelSolo[i]);
+      const active = (params.channelEnabled[i] ?? false) && !(anySolo && !params.channelSolo[i]);
       g.gain.setValueAtTime(active ? 1 : 0, now);
     });
-  }, [params.osc2Enabled, params.osc3Enabled, params.noiseEnabled, params.channelMute, params.channelSolo]);
+  }, [params.channelEnabled, params.channelSolo]);
 
   // Filtro pasabanda del ruido: conmuta la fuente del canal entre el filtro y el bypass.
   useEffect(() => {
@@ -699,13 +802,19 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   // efecto de ruteo de canal, desconectando): la matriz CV puede sumar modulación encima vía
   // los destinos oscNLevel / noiseLevel, así que bajar la ganancia no silenciaría de verdad.
   useEffect(() => {
-    const levels = [params.mixOsc1, params.mixOsc2, params.mixOsc3, params.mixNoise];
-    const chans = [ch1Ref.current, ch2Ref.current, ch3Ref.current, chNRef.current];
+    const levels = [params.mixOsc1, params.mixOsc2, params.mixOsc3, params.mixOsc4, params.mixNoise];
+    const chans = [ch1Ref.current, ch2Ref.current, ch3Ref.current, ch4Ref.current, chNRef.current];
     const now = Tone.now();
     chans.forEach((ch, i) => {
       if (ch) ch.gain.setValueAtTime(dbToGainMuted(levels[i]), now);
     });
-  }, [params.mixOsc1, params.mixOsc2, params.mixOsc3, params.mixNoise]);
+  }, [params.mixOsc1, params.mixOsc2, params.mixOsc3, params.mixOsc4, params.mixNoise]);
+
+  // PAN por canal (índice 0..4). El StereoPannerNode es nativo y barato.
+  useEffect(() => {
+    const now = Tone.now();
+    pannerRefs.current.forEach((p, i) => p.pan.setValueAtTime(params.channelPan[i] ?? 0, now));
+  }, [params.channelPan]);
 
   // Envíos por canal hacia cada efecto (post-fader). 0 = sin envío.
   useEffect(() => {
@@ -760,7 +869,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     const filter = filterRef.current;
     if (!filter) return;
     filter.type = params.filterType;
-    filter.frequency.setValueAtTime(params.filterFreq, Tone.now());
+    filter.frequency.setValueAtTime(safeFreq(params.filterFreq, 20000), Tone.now());
     filter.Q.setValueAtTime(params.filterRes, Tone.now());
   }, [params.filterType, params.filterFreq, params.filterRes]);
 
@@ -777,11 +886,11 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   // VCF 2: routeo de la voz seleccionada. El VCO elegido se desconecta de su canal directo
   // y pasa osc → VCF 2 → canal; los demás van directos. 'none' = todos directos.
   useEffect(() => {
-    const oscs = [osc1Ref.current, osc2Ref.current, osc3Ref.current];
-    const chs = [ch1Ref.current, ch2Ref.current, ch3Ref.current];
+    const oscs = [osc1Ref.current, osc2Ref.current, osc3Ref.current, osc4Ref.current];
+    const chs = [ch1Ref.current, ch2Ref.current, ch3Ref.current, ch4Ref.current];
     const vcf2 = vcf2Ref.current;
     if (oscs.some((o) => !o) || chs.some((c) => !c) || !vcf2) return;
-    const srcIndex: number = { none: -1, vco1: 0, vco2: 1, vco3: 2 }[params.vcf2Source];
+    const srcIndex: number = { none: -1, vco1: 0, vco2: 1, vco3: 2, vco4: 3 }[params.vcf2Source];
     vcf2.disconnect();
     oscs.forEach((osc, i) => {
       osc!.disconnect();
@@ -801,24 +910,31 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     if (!ad) return;
     ad.attack = params.ad1Attack;
     ad.decay = params.ad1Decay;
-  }, [params.ad1Attack, params.ad1Decay]);
+    ad.attackCurve = params.ad1Curve;
+    ad.decayCurve = params.ad1Curve;
+    ad.releaseCurve = params.ad1Curve;
+  }, [params.ad1Attack, params.ad1Decay, params.ad1Curve]);
 
   useEffect(() => {
     const ad = ad2Ref.current;
     if (!ad) return;
     ad.attack = params.ad2Attack;
     ad.decay = params.ad2Decay;
-  }, [params.ad2Attack, params.ad2Decay]);
+    ad.attackCurve = params.ad2Curve;
+    ad.decayCurve = params.ad2Curve;
+    ad.releaseCurve = params.ad2Curve;
+  }, [params.ad2Attack, params.ad2Decay, params.ad2Curve]);
 
-  // DAHD: sólo guarda los tiempos vivos; la forma se aplica al disparar (triggerDahd).
+  // DAHD: sólo guarda los tiempos/curva vivos; la forma se aplica al disparar (triggerDahd).
   useEffect(() => {
     dahdShapeRef.current = {
       delay: params.dahdDelay,
       attack: params.dahdAttack,
       hold: params.dahdHold,
       decay: params.dahdDecay,
+      curve: params.dahdCurve,
     };
-  }, [params.dahdDelay, params.dahdAttack, params.dahdHold, params.dahdDecay]);
+  }, [params.dahdDelay, params.dahdAttack, params.dahdHold, params.dahdDecay, params.dahdCurve]);
 
   // Envolvente de amplitud
   useEffect(() => {
@@ -828,7 +944,10 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     env.decay = params.decay;
     env.sustain = params.sustain;
     env.release = params.release;
-  }, [params.attack, params.decay, params.sustain, params.release]);
+    env.attackCurve = params.adsrCurve;
+    env.decayCurve = params.adsrCurve;
+    env.releaseCurve = params.adsrCurve;
+  }, [params.attack, params.decay, params.sustain, params.release, params.adsrCurve]);
 
   // (El volumen maestro se aplica en el efecto de la matriz, porque el destino VCA modula
   // esta misma ganancia: sin fuente la base es el volumen; con fuente, el volumen es el pico.)
@@ -985,8 +1104,8 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
 
   // --- API imperativa para tocar notas (baja latencia) ---
   // Pitch de UN oscilador (parafónico: la matriz MIDI decide qué VCO sigue a qué fuente).
-  const setOscNote = useCallback((oscIndex: 0 | 1 | 2, note: string, time?: number) => {
-    const osc = [osc1Ref, osc2Ref, osc3Ref][oscIndex].current;
+  const setOscNote = useCallback((oscIndex: 0 | 1 | 2 | 3, note: string, time?: number) => {
+    const osc = [osc1Ref, osc2Ref, osc3Ref, osc4Ref][oscIndex].current;
     if (!osc) return;
     osc.frequency.setValueAtTime(Tone.Frequency(note).toFrequency(), time ?? Tone.now());
   }, []);
@@ -1019,7 +1138,7 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
   const triggerDahd = useCallback((time?: number, velocity = 1) => {
     const sig = dahdSigRef.current;
     if (!sig) return;
-    const { delay, attack, hold, decay } = dahdShapeRef.current;
+    const { delay, attack, hold, decay, curve } = dahdShapeRef.current;
     const t0 = time ?? Tone.now();
     const peak = velocity;
     const aStart = t0 + delay;
@@ -1027,11 +1146,22 @@ export function useSynthEngine(params: SynthParams): SynthEngine {
     const hEnd = aEnd + hold;
     const dEnd = hEnd + Math.max(decay, 0.001);
     sig.cancelScheduledValues(t0);
-    sig.setValueAtTime(0, t0);
-    sig.setValueAtTime(0, aStart);
-    sig.linearRampToValueAtTime(peak, aEnd);
-    sig.setValueAtTime(peak, hEnd);
-    sig.linearRampToValueAtTime(0, dEnd);
+    if (curve === 'exponential') {
+      // La rampa exponencial no admite 0; se usa un piso pequeño como inicio/fin de las rampas.
+      const floor = 0.0001;
+      sig.setValueAtTime(floor, t0);
+      sig.setValueAtTime(floor, aStart);
+      sig.exponentialRampToValueAtTime(Math.max(peak, floor), aEnd);
+      sig.setValueAtTime(peak, hEnd);
+      sig.exponentialRampToValueAtTime(floor, dEnd);
+      sig.setValueAtTime(0, dEnd);
+    } else {
+      sig.setValueAtTime(0, t0);
+      sig.setValueAtTime(0, aStart);
+      sig.linearRampToValueAtTime(peak, aEnd);
+      sig.setValueAtTime(peak, hEnd);
+      sig.linearRampToValueAtTime(0, dEnd);
+    }
   }, []);
 
   const envAttack = useCallback(

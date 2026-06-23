@@ -53,6 +53,9 @@ export const MOD_DESTS: PatchDest[] = [
   { id: 'osc1Detune', label: 'VCO 1', short: 'V1' },
   { id: 'osc2Detune', label: 'VCO 2', short: 'V2' },
   { id: 'osc3Detune', label: 'VCO 3', short: 'V3' },
+  { id: 'osc4Detune', label: 'VCO 4', short: 'V4' },
+  { id: 'fmIndex', label: 'FM idx', short: 'FMi' },
+  { id: 'fmHarmonicity', label: 'FM hrm', short: 'FMh' },
   { id: 'filterFreq', label: 'Cut 1', short: 'C1' },
   { id: 'filterQ', label: 'Res 1', short: 'R1' },
   { id: 'vcf2Freq', label: 'Cut 2', short: 'C2' },
@@ -60,6 +63,7 @@ export const MOD_DESTS: PatchDest[] = [
   { id: 'osc1Level', label: 'Vol 1', short: 'V1' },
   { id: 'osc2Level', label: 'Vol 2', short: 'V2' },
   { id: 'osc3Level', label: 'Vol 3', short: 'V3' },
+  { id: 'osc4Level', label: 'Vol 4', short: 'V4' },
   { id: 'noiseLevel', label: 'Noise', short: 'Noiz' },
   { id: 'vcaGain', label: 'VCA', short: 'VCA' },
 ];

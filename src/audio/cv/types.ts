@@ -37,6 +37,7 @@ export type ModDestId =
   | 'osc1Detune'
   | 'osc2Detune'
   | 'osc3Detune'
+  | 'osc4Detune'
   | 'filterFreq'
   | 'filterQ'
   | 'vcf2Freq'
@@ -44,8 +45,12 @@ export type ModDestId =
   | 'osc1Level'
   | 'osc2Level'
   | 'osc3Level'
+  | 'osc4Level'
   | 'noiseLevel'
-  | 'noiseFilterFreq';
+  | 'noiseFilterFreq'
+  // Timbre del VCO 4 (FM): índice de modulación y armonicidad.
+  | 'fmIndex'
+  | 'fmHarmonicity';
 
 export interface ModSource {
   id: ModSourceId;

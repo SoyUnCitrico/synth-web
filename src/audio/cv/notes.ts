@@ -12,7 +12,7 @@
  */
 
 export type NoteSourceId = 'keyboard' | 'midi' | 'seq1' | 'seq2';
-export type NoteDestId = 'osc1' | 'osc2' | 'osc3' | 'filter1' | 'vcf2' | 'noiseFilter';
+export type NoteDestId = 'osc1' | 'osc2' | 'osc3' | 'osc4' | 'filter1' | 'vcf2' | 'noiseFilter' | 'quant';
 
 export interface NoteSourceCfg {
   id: NoteSourceId;
@@ -39,9 +39,13 @@ export const NOTE_DESTS: NoteDestCfg[] = [
   { id: 'osc1', label: 'VCO 1', short: 'V1' },
   { id: 'osc2', label: 'VCO 2', short: 'V2' },
   { id: 'osc3', label: 'VCO 3', short: 'V3' },
+  { id: 'osc4', label: 'VCO 4', short: 'V4' },
   { id: 'filter1', label: 'Cut 1', short: 'C1' },
   { id: 'vcf2', label: 'Cut 2', short: 'C2' },
   { id: 'noiseFilter', label: 'Cut-BP', short: 'BP' },
+  // 'quant' no es un destino de pitch: marca que la fuente pasa por el cuantizador de escala
+  // (se aplica en routeNote antes de rutear a los VCO/filtros).
+  { id: 'quant', label: 'Cuant', short: 'Q' },
 ];
 
 /** Estado de la matriz MIDI: qué intersecciones (fuente→destino) están conectadas. */

@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import './App.css';
-import BasicSynth from './pages/BasicSynth';
+//import BasicSynth from './pages/BasicSynth';
+import Makwil from './pages/Makwil';
 import Header from './components/Header/Header';
 import { TransportProvider } from './audio/sequencer/transport';
 
@@ -11,7 +12,8 @@ const App : React.FC = () => {
             <TransportProvider>
                 <Header />
                 <Routes>
-                    <Route path="/" element={<BasicSynth/>}/>
+                    <Route path="/" element={<Makwil/>}/>
+                    {/* <Route path="/basic" element={<BasicSynth/>}/> */}
                 </Routes>
                 {/* BottomNav vive dentro de BasicSynth (es position:fixed) para acceder al
                     estado de mute/encendido del mixer; sigue dentro de TransportProvider. */}

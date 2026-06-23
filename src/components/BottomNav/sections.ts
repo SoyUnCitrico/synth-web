@@ -10,6 +10,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
   { id: 'mod-vco1', label: 'VCO 1' },
   { id: 'mod-vco2', label: 'VCO 2' },
   { id: 'mod-vco3', label: 'VCO 3' },
+  { id: 'mod-vco4', label: 'VCO 4' },
   { id: 'mod-vcf', label: 'VCF' },
   { id: 'mod-vcf2', label: 'VCF 2' },
   { id: 'mod-noise', label: 'Ruido' },

@@ -5,15 +5,15 @@ import { useTransport } from '../../audio/sequencer/transport';
 import { MODULE_SECTIONS } from './sections';
 import './BottomNav.css';
 
-// Etiquetas de la fila de mute/unmute: 4 voces (VCO1-3 + Ruido) y 4 voces de batería.
-const VOICE_LABELS = ['V1', 'V2', 'V3', 'N4'];
+// Etiquetas de la fila de on/off: 5 voces (VCO1-3, FM y Ruido) y 4 voces de batería.
+const VOICE_LABELS = ['V1', 'V2', 'V3', 'FM', 'N'];
 const DRUM_LABELS = ['K1', 'S2', 'H3', 'O4'];
 
 interface BottomNavProps {
-  /** Mute por canal del mixer (índice 0..3 = VCO1, VCO2, VCO3, Ruido); true = muteado. */
-  channelMute: boolean[];
-  /** Conmuta el mute de un canal (misma instancia que el botón "M" del mixer). */
-  onToggleMute: (i: number) => void;
+  /** On/off por canal del mixer (índice 0..4 = VCO1, VCO2, VCO3, VCO4-FM, Ruido); true = sonando. */
+  channelEnabled: boolean[];
+  /** Conmuta el on/off de un canal (misma instancia que el botón "M" del mixer y el switch del VCO). */
+  onToggleChannel: (i: number) => void;
   /** Encendido por voz de batería (índice 0..3); true = sonando. */
   drumEnabled: boolean[];
   /** Conmuta el encendido de una voz (misma instancia que el checkbox del mixer). */
@@ -30,8 +30,8 @@ interface BottomNavProps {
  * elegido (anclas por id en el DOM, asignadas en BasicSynth).
  */
 const BottomNav: React.FC<BottomNavProps> = ({
-  channelMute,
-  onToggleMute,
+  channelEnabled,
+  onToggleChannel,
   drumEnabled,
   onToggleDrumEnabled,
 }) => {
@@ -100,11 +100,11 @@ const BottomNav: React.FC<BottomNavProps> = ({
       <div className="bottom-nav-mutes" role="group" aria-label="Mute de canales">
         <div className="mute-group voices">
           {VOICE_LABELS.map((label, i) => (
-            <label key={label} className={`mute-chip voice ${!channelMute[i] ? 'on' : ''}`}>
+            <label key={label} className={`mute-chip voice ${channelEnabled[i] ? 'on' : ''}`}>
               <input
                 type="checkbox"
-                checked={!channelMute[i]}
-                onChange={() => onToggleMute(i)}
+                checked={!!channelEnabled[i]}
+                onChange={() => onToggleChannel(i)}
                 aria-label={`Canal ${label}`}
               />
               <span>{label}</span>

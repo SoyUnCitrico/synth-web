@@ -21,7 +21,7 @@ const Header : React.FC = () => {
             <div className={"header-container"}>
                 <div className={"logo-container"}>
                     <PiPianoKeysFill/>
-                    <h4>MODULOR</h4>
+                    <h4>MAKWIL</h4>
                 </div>
                 <div className={"transport-container"}>
                     <button
