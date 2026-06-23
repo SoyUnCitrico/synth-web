@@ -9,7 +9,7 @@
  *   - 'trigger' → disparo único en note-on; ignora el note-off (las AD, sustain 0).
  */
 
-export type GateSourceId = 'keyboard' | 'midi' | 'seq1' | 'seq2' | 'seq3' | 'seq4';
+export type GateSourceId = 'keyboard' | 'midi' | 'seq1' | 'seq2' | 'seq3' | 'seq4' | 'seq5';
 export type GateDestId = 'amp' | 'ad1' | 'ad2' | 'dahd' | 'fx';
 
 export interface GateSourceCfg {

@@ -1,7 +1,7 @@
 import React from 'react';
-import { MOD_SOURCES, MOD_DESTS, type ModPatch, type PatchSource } from '../../../audio/cv/patch';
-import { GATE_SOURCES, GATE_DESTS, type GatePatch } from '../../../audio/cv/gates';
-import { NOTE_SOURCES, NOTE_DESTS, type NotePatch } from '../../../audio/cv/notes';
+import { MOD_SOURCES, MOD_DESTS, type ModPatch, type PatchSource, type PatchDest } from '../../../audio/cv/patch';
+import { GATE_SOURCES, GATE_DESTS, type GatePatch, type GateSourceCfg, type GateDestCfg } from '../../../audio/cv/gates';
+import { NOTE_SOURCES, NOTE_DESTS, type NotePatch, type NoteSourceCfg, type NoteDestCfg } from '../../../audio/cv/notes';
 import './PatchMatrix.css';
 
 interface MatrixRow {
@@ -81,9 +81,16 @@ interface PatchMatrixProps {
   /** Matriz MIDI: fuentes de nota → pitch de VCO / seguimiento de cutoff. */
   notePatch: NotePatch;
   setNotePatch: React.Dispatch<React.SetStateAction<NotePatch>>;
-  /** Filas de la sección CV. Por defecto MOD_SOURCES; BasicSynth la sobreescribe para
+  /** Filas de la sección CV. Por defecto MOD_SOURCES; la página la sobreescribe para
    *  filtrar/reetiquetar los slots CC MIDI según el mapeo activo. */
   modSources?: PatchSource[];
+  /** Columnas de la sección CV. Por defecto MOD_DESTS. */
+  modDests?: PatchDest[];
+  /** Fuentes/destinos de las matrices de gates y MIDI (por defecto las de Modulor). */
+  gateSources?: GateSourceCfg[];
+  gateDests?: GateDestCfg[];
+  noteSources?: NoteSourceCfg[];
+  noteDests?: NoteDestCfg[];
 }
 
 /**
@@ -103,6 +110,11 @@ const PatchMatrix: React.FC<PatchMatrixProps> = ({
   notePatch,
   setNotePatch,
   modSources = MOD_SOURCES,
+  modDests = MOD_DESTS,
+  gateSources = GATE_SOURCES,
+  gateDests = GATE_DESTS,
+  noteSources = NOTE_SOURCES,
+  noteDests = NOTE_DESTS,
 }) => {
   const toggle =
     <T extends Partial<Record<string, boolean>>>(setter: React.Dispatch<React.SetStateAction<T>>) =>
@@ -120,21 +132,21 @@ const PatchMatrix: React.FC<PatchMatrixProps> = ({
         <MatrixTable
           title="CV"
           rows={modSources}
-          cols={MOD_DESTS}
+          cols={modDests}
           isOn={(s, d) => !!patch[`${s}>${d}`]}
           onToggle={toggle(setPatch)}
         />
         <MatrixTable
           title="Gates / Triggers"
-          rows={GATE_SOURCES}
-          cols={GATE_DESTS.map((d) => ({ id: d.id, label: d.label, short: d.short, sub: d.mode === 'gate' ? 'gate' : 'trig' }))}
+          rows={gateSources}
+          cols={gateDests.map((d) => ({ id: d.id, label: d.label, short: d.short, sub: d.mode === 'gate' ? 'gate' : 'trig' }))}
           isOn={(s, d) => !!gatePatch[`${s}>${d}`]}
           onToggle={toggle(setGatePatch)}
         />
         <MatrixTable
           title="MIDI"
-          rows={NOTE_SOURCES}
-          cols={NOTE_DESTS}
+          rows={noteSources}
+          cols={noteDests}
           isOn={(s, d) => !!notePatch[`${s}>${d}`]}
           onToggle={toggle(setNotePatch)}
         />

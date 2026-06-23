@@ -7,7 +7,11 @@ import './Header.css'
 
 // Cabecera global. Incluye un transporte (Play/Stop · Reset · BPM) que controla la MISMA
 // instancia del secuenciador que el módulo de la página, vía el contexto de transporte.
-const Header : React.FC = () => {
+interface HeaderProps {
+  label?: string;
+}
+
+const Header : React.FC<HeaderProps> = ({label = "MAKWIL"}) => {
     const { running, setRunning, bpm, setBpm, reset, resetAll } = useTransport();
     // El AudioContext debe reanudarse DENTRO del gesto del usuario (la misma pila del click);
     // si se hiciera en un useEffect el navegador rechaza la reanudación y el transporte queda
@@ -21,7 +25,7 @@ const Header : React.FC = () => {
             <div className={"header-container"}>
                 <div className={"logo-container"}>
                     <PiPianoKeysFill/>
-                    <h4>MAKWIL</h4>
+                    <h4>{label}</h4>
                 </div>
                 <div className={"transport-container"}>
                     <button

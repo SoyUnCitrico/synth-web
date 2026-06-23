@@ -36,12 +36,15 @@ interface VCAProps {
   onDelaySend: (i: number, v: number) => void;
   delaySendEnabled: boolean;
   onToggleDelaySend: () => void;
-  // Encendido/apagado por voz de batería (índice 0..DRUM_VOICES-1)
-  drumEnabled: boolean[];
-  onToggleDrumEnabled: (i: number) => void;
+  // Encendido/apagado por voz de batería (índice 0..DRUM_VOICES-1). Opcionales: si no se pasan
+  // (p. ej. en Makwil, sin batería) no se renderiza la sección DRUMS.
+  drumEnabled?: boolean[];
+  onToggleDrumEnabled?: (i: number) => void;
+  /** Etiquetas de los canales del mixer. Por defecto VCO1-3 + FM + Ruido (Modulor). */
+  channelLabels?: string[];
 }
 
-const CHANNEL_LABELS = ['VCO 1', 'VCO 2', 'VCO 3', 'FM', 'Ruido'];
+const DEFAULT_CHANNEL_LABELS = ['VCO 1', 'VCO 2', 'VCO 3', 'FM', 'Ruido'];
 
 // Lectura del PAN: 0 = centro (C); negativo = izquierda (L); positivo = derecha (R).
 const panDisplay = (v: number): string => {
@@ -79,11 +82,15 @@ export const VCA: React.FC<VCAProps> = ({
   onToggleDelaySend,
   drumEnabled,
   onToggleDrumEnabled,
+  channelLabels,
 }) => {
   // El extremo inferior del master (-40 dB) silencia por completo (el motor pone gain 0).
   const muted = volume <= -40;
   // Convertir dB a un valor normalizado para visualización (-40dB a +2dB → 0..1).
   const normalizedVolume = (volume + 40) / 42;
+  const CHANNEL_LABELS = channelLabels ?? DEFAULT_CHANNEL_LABELS;
+  // La sección de batería sólo se muestra si la página la provee (Modulor sí, Makwil no).
+  const showDrums = !!drumEnabled && !!onToggleDrumEnabled;
 
   const channels = [
     { mix: mixOsc1, setMix: setMixOsc1 },
@@ -170,22 +177,24 @@ export const VCA: React.FC<VCAProps> = ({
               
             </div>
           </div>
-          <div className="mixer-drums-controls">
-            <span className="mixer-title">DRUMS</span>
-            {DRUM_LABELS.map((label, i) => (
-              <label
-                key={label}
-                className={`drum-enable checkbox-option ${drumEnabled[i] ? 'on' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={drumEnabled[i] ?? false}
-                  onChange={() => onToggleDrumEnabled(i)}
-                />
-                {label}
-              </label>
-            ))}
-          </div> 
+          {showDrums && (
+            <div className="mixer-drums-controls">
+              <span className="mixer-title">DRUMS</span>
+              {DRUM_LABELS.map((label, i) => (
+                <label
+                  key={label}
+                  className={`drum-enable checkbox-option ${drumEnabled![i] ? 'on' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={drumEnabled![i] ?? false}
+                    onChange={() => onToggleDrumEnabled!(i)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="sends">

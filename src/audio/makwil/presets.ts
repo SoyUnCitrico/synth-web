@@ -1,43 +1,39 @@
-import type * as Tone from 'tone';
-import type { ModPatch } from '../audio/cv/patch';
-import type { GatePatch } from '../audio/cv/gates';
-import type { NotePatch } from '../audio/cv/notes';
-import type { NoiseType, Vcf2Type, Vcf2Source, EnvCurve } from '../audio/useSynthEngine';
-import type { SeqConfig, PitchStep, CvStep, DrumStep } from '../audio/sequencer/types';
-
 /**
- * Snapshot del estado guardable del sinte.
+ * Snapshot del estado guardable de MAKWIL (presets con nombre).
  *
- * PATRÓN PARA EXTENDER: para incluir un parámetro nuevo en los presets basta con
- *   1) añadir su campo aquí,
- *   2) añadir una línea en `captureState` y otra en `applyState` (en BasicSynth).
- * `applyState` ignora los campos ausentes, así un preset viejo sin campos nuevos sigue
- * cargando sin romper.
+ * Igual patrón que Modulor (presets/types.ts) pero sin batería, con VCO renumerados, octava por
+ * secuenciador y 5 secuenciadores (4 lanes de CV). Reutiliza la infraestructura genérica de
+ * presets (`usePresets<S>`, `Presets`, io) parametrizada por este tipo.
  */
-export interface PresetState {
-  // --- OSC 1 ---
-  oscType: Tone.ToneOscillatorType;
-  frequency: number;
+import type * as Tone from 'tone';
+import type { ModPatch, GatePatch, NotePatch } from './cv';
+import type { NoiseType, Vcf2Type, Vcf2Source, EnvCurve } from '../useSynthEngine';
+import type { SeqConfig, PitchStep, CvStep } from './sequencerTypes';
+
+export interface MakwilPresetState {
+  // --- VCO 1 (Fat / poli) ---
+  osc1Type: Tone.ToneOscillatorType;
+  osc1Freq: number;
   osc1Fine: number;
-  pwm1: number;
-  // --- OSC 2 ---
+  osc1Spread: number;
+  osc1Count: number;
+  // --- VCO 2 (FM) ---
   osc2Type: Tone.ToneOscillatorType;
   osc2Freq: number;
-  detune: number;
-  pwm2: number;
-  // --- OSC 3 (Fat) ---
+  osc2Fine: number;
+  fmHarmonicity: number;
+  fmModIndex: number;
+  // --- VCO 3 (pulso) ---
   osc3Type: Tone.ToneOscillatorType;
   osc3Freq: number;
-  osc3Detune: number;
-  osc3Spread: number;
-  osc3Count: number;
-  // --- OSC 4 (FM) ---
+  osc3Fine: number;
+  pwm3: number;
+  // --- VCO 4 (pulso) ---
   osc4Type: Tone.ToneOscillatorType;
   osc4Freq: number;
   osc4Fine: number;
-  fmHarmonicity: number;
-  fmModIndex: number;
-  // --- On/off por voz (5 canales: VCO1-3, FM, Ruido) ---
+  pwm4: number;
+  // --- On/off por voz (5 canales: VCO1-4 + Ruido) ---
   channelEnabled: boolean[];
   // --- Cuantizador de escala MIDI ---
   quantScale: string;
@@ -84,7 +80,7 @@ export interface PresetState {
   dahdDecay: number;
   dahdAmount: number;
   dahdCurve: EnvCurve;
-  // --- ADSR (amplitud) ---
+  // --- ADSR (amplitud; también de las voces poli) ---
   attack: number;
   decay: number;
   sustain: number;
@@ -105,37 +101,16 @@ export interface PresetState {
   reverbWet: number;
   delayTime: number;
   delayFeedback: number;
-  // --- Matriz de modulación ---
+  // --- Matrices de modulación ---
   modPatch: ModPatch;
   gatePatch: GatePatch;
   notePatch: NotePatch;
-  // --- Secuenciador (4 secuenciadores independientes) ---
+  // --- Secuenciador (5 secuenciadores) ---
   seqConfigs: SeqConfig[];
   seqBpm: number;
   pitchSteps: PitchStep[];
   cvSteps: CvStep[];
   cv2Steps: CvStep[];
   cv3Steps: CvStep[];
-  // --- Batería (no incluye los buffers de sample del usuario) ---
-  drumEnabled: boolean[];
-  drumSampleSel: string[];
-  drumPitch: number[];
-  drumDecay: number[];
-  drumVol: number[];
-  drumRevSends: number[];
-  drumDelSends: number[];
-  drumConfigs: SeqConfig[];
-  drumSteps: DrumStep[][];
-  drumReverbDecay: number;
-  drumDelayTime: number;
-  drumDelayFeedback: number;
-}
-
-/**
- * Preset con nombre, genérico sobre el tipo de estado `S` (por defecto el de Modulor,
- * `PresetState`). Makwil reutiliza la misma infraestructura con `Preset<MakwilPresetState>`.
- */
-export interface Preset<S = PresetState> {
-  name: string;
-  state: S;
+  cv4Steps: CvStep[];
 }

@@ -82,6 +82,21 @@
   color: var(--amber-soft);
   padding: 0.35rem 0;
 }
+/* Botones de octava (±) de los secuenciadores de pitch. */
+.seq-oct-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+.seq-oct-btn {
+  width: 32px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.seq-oct-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .seq-lane {
   margin-top: 0.35rem;

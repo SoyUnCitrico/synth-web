@@ -21,6 +21,7 @@ export type ModSourceId =
   | 'seqCv'
   | 'seqCv2'
   | 'seqCv3'
+  | 'seqCv4'
   | 'random'
   // Slots de perillas/CC MIDI (fuentes externas). Ver MIDI_CC_SLOTS en patch.ts.
   | 'midiCC1'

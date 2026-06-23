@@ -2,22 +2,26 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import { PiPianoKeysFill } from 'react-icons/pi';
 import { useTransport } from '../../audio/sequencer/transport';
-import { MODULE_SECTIONS } from './sections';
+import { MODULE_SECTIONS, type ModuleSection } from './sections';
 import './BottomNav.css';
 
-// Etiquetas de la fila de on/off: 5 voces (VCO1-3, FM y Ruido) y 4 voces de batería.
-const VOICE_LABELS = ['V1', 'V2', 'V3', 'FM', 'N'];
+// Etiquetas por defecto de la fila de on/off: 5 voces (VCO1-3, FM y Ruido) y 4 de batería.
+const DEFAULT_VOICE_LABELS = ['V1', 'V2', 'V3', 'FM', 'N'];
 const DRUM_LABELS = ['K1', 'S2', 'H3', 'O4'];
 
 interface BottomNavProps {
-  /** On/off por canal del mixer (índice 0..4 = VCO1, VCO2, VCO3, VCO4-FM, Ruido); true = sonando. */
+  /** On/off por canal del mixer; true = sonando. */
   channelEnabled: boolean[];
   /** Conmuta el on/off de un canal (misma instancia que el botón "M" del mixer y el switch del VCO). */
   onToggleChannel: (i: number) => void;
-  /** Encendido por voz de batería (índice 0..3); true = sonando. */
-  drumEnabled: boolean[];
-  /** Conmuta el encendido de una voz (misma instancia que el checkbox del mixer). */
-  onToggleDrumEnabled: (i: number) => void;
+  /** Encendido por voz de batería (opcional; sin él no se muestran chips de batería). */
+  drumEnabled?: boolean[];
+  /** Conmuta el encendido de una voz de batería (opcional). */
+  onToggleDrumEnabled?: (i: number) => void;
+  /** Índice de módulos del menú. Por defecto MODULE_SECTIONS (Modulor). */
+  sections?: ModuleSection[];
+  /** Etiquetas de los chips de voz. Por defecto V1-V3 + FM + N. */
+  voiceLabels?: string[];
 }
 
 /**
@@ -34,8 +38,13 @@ const BottomNav: React.FC<BottomNavProps> = ({
   onToggleChannel,
   drumEnabled,
   onToggleDrumEnabled,
+  sections,
+  voiceLabels,
 }) => {
   const { running, setRunning, reset } = useTransport();
+  const moduleSections = sections ?? MODULE_SECTIONS;
+  const voiceChips = voiceLabels ?? DEFAULT_VOICE_LABELS;
+  const showDrums = !!drumEnabled && !!onToggleDrumEnabled;
   const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -85,7 +94,7 @@ const BottomNav: React.FC<BottomNavProps> = ({
         </button>
         {open && (
           <ul className="bottom-nav-menu">
-            {MODULE_SECTIONS.map((s) => (
+            {moduleSections.map((s) => (
               <li key={s.id}>
                 <button onClick={() => goTo(s.id)}>{s.label}</button>
               </li>
@@ -99,7 +108,7 @@ const BottomNav: React.FC<BottomNavProps> = ({
           voces se distinguen por color (cian) de la batería (magenta). */}
       <div className="bottom-nav-mutes" role="group" aria-label="Mute de canales">
         <div className="mute-group voices">
-          {VOICE_LABELS.map((label, i) => (
+          {voiceChips.map((label, i) => (
             <label key={label} className={`mute-chip voice ${channelEnabled[i] ? 'on' : ''}`}>
               <input
                 type="checkbox"
@@ -111,19 +120,21 @@ const BottomNav: React.FC<BottomNavProps> = ({
             </label>
           ))}
         </div>
-        <div className="mute-group drums">
-          {DRUM_LABELS.map((label, i) => (
-            <label key={label} className={`mute-chip drum ${drumEnabled[i] ? 'on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={!!drumEnabled[i]}
-                onChange={() => onToggleDrumEnabled(i)}
-                aria-label={`Batería ${label}`}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </div>
+        {showDrums && (
+          <div className="mute-group drums">
+            {DRUM_LABELS.map((label, i) => (
+              <label key={label} className={`mute-chip drum ${drumEnabled![i] ? 'on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={!!drumEnabled![i]}
+                  onChange={() => onToggleDrumEnabled!(i)}
+                  aria-label={`Batería ${label}`}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bottom-nav-right">

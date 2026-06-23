@@ -3,15 +3,15 @@ import type { Preset } from '../../presets/types';
 import { serializePresets, parsePresets } from '../../presets/io';
 import './Presets.css';
 
-interface PresetsProps {
-  presets: Preset[];
+interface PresetsProps<S> {
+  presets: Preset<S>[];
   onSave: (name: string) => void;
   onLoad: (name: string) => void;
   onDelete: (name: string) => void;
-  onImport: (presets: Preset[]) => void;
+  onImport: (presets: Preset<S>[]) => void;
 }
 
-const Presets: React.FC<PresetsProps> = ({ presets, onSave, onLoad, onDelete, onImport }) => {
+function Presets<S>({ presets, onSave, onLoad, onDelete, onImport }: PresetsProps<S>) {
   const [name, setName] = useState('');
   const [selected, setSelected] = useState('');
 
@@ -91,6 +91,6 @@ const Presets: React.FC<PresetsProps> = ({ presets, onSave, onLoad, onDelete, on
       </div>
     </div>
   );
-};
+}
 
 export default Presets;
