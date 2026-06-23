@@ -36,6 +36,15 @@ interface VCAProps {
   onDelaySend: (i: number, v: number) => void;
   delaySendEnabled: boolean;
   onToggleDelaySend: () => void;
+  // Envíos opcionales a Chorus / Chebyshev (solo Makwil; si no se pasan, no se renderizan).
+  chorusSends?: number[];
+  onChorusSend?: (i: number, v: number) => void;
+  chorusSendEnabled?: boolean;
+  onToggleChorusSend?: () => void;
+  chebySends?: number[];
+  onChebySend?: (i: number, v: number) => void;
+  chebySendEnabled?: boolean;
+  onToggleChebySend?: () => void;
   // Encendido/apagado por voz de batería (índice 0..DRUM_VOICES-1). Opcionales: si no se pasan
   // (p. ej. en Makwil, sin batería) no se renderiza la sección DRUMS.
   drumEnabled?: boolean[];
@@ -80,6 +89,14 @@ export const VCA: React.FC<VCAProps> = ({
   onDelaySend,
   delaySendEnabled,
   onToggleDelaySend,
+  chorusSends,
+  onChorusSend,
+  chorusSendEnabled,
+  onToggleChorusSend,
+  chebySends,
+  onChebySend,
+  chebySendEnabled,
+  onToggleChebySend,
   drumEnabled,
   onToggleDrumEnabled,
   channelLabels,
@@ -100,13 +117,14 @@ export const VCA: React.FC<VCAProps> = ({
     { mix: mixNoise, setMix: setMixNoise },
   ];
 
-  // Una columna de envío (reverb/delay): checkbox de activación + una perilla por canal.
+  // Una columna de envío (reverb/delay/chorus/cheby): checkbox de activación + una perilla por canal.
   const sendRow = (
     label: string,
     enabled: boolean,
     onToggle: () => void,
     sends: number[],
     onSend: (i: number, v: number) => void,
+    midiPrefix: string,
   ) => (
     <div className="send-row">
       <label className="send-enable checkbox-option">
@@ -125,6 +143,7 @@ export const VCA: React.FC<VCAProps> = ({
             display={`${((sends[i] ?? 0) * 100).toFixed(0)}%`}
             onChange={(v) => onSend(i, v)}
             disabled={!enabled}
+            midiId={`${midiPrefix}-send-${i}`}
           />
         ))}
       </div>
@@ -152,6 +171,7 @@ export const VCA: React.FC<VCAProps> = ({
                     value={ch.mix}
                     display={`${ch.mix.toFixed(1)}`}
                     onChange={ch.setMix}
+                    midiId={`mix-${i}`}
                   />
                   <div className="mixer-ms">
                     <label className={`ms-btn mute ${!enabled[i] ? 'on' : ''}`}>
@@ -171,6 +191,7 @@ export const VCA: React.FC<VCAProps> = ({
                     step={0.02}
                     display={panDisplay(pans[i] ?? 0)}
                     onChange={(v) => onPan(i, v)}
+                    midiId={`pan-${i}`}
                   />
                 </div>
               ))}
@@ -198,8 +219,12 @@ export const VCA: React.FC<VCAProps> = ({
         </div>
 
         <div className="sends">
-          {sendRow('Reverb', reverbSendEnabled, onToggleReverbSend, reverbSends, onReverbSend)}
-          {sendRow('Delay', delaySendEnabled, onToggleDelaySend, delaySends, onDelaySend)}
+          {sendRow('Reverb', reverbSendEnabled, onToggleReverbSend, reverbSends, onReverbSend, 'reverb')}
+          {sendRow('Delay', delaySendEnabled, onToggleDelaySend, delaySends, onDelaySend, 'delay')}
+          {chorusSends && onChorusSend && onToggleChorusSend &&
+            sendRow('Chorus', !!chorusSendEnabled, onToggleChorusSend, chorusSends, onChorusSend, 'chorus')}
+          {chebySends && onChebySend && onToggleChebySend &&
+            sendRow('Cheby', !!chebySendEnabled, onToggleChebySend, chebySends, onChebySend, 'cheby')}
         </div>
         <div className="master-section">
 
@@ -207,6 +232,7 @@ export const VCA: React.FC<VCAProps> = ({
             <Fader
               id="volume" label="Master" min={-40} max={2} step={0.1} isMaster
               value={volume} display={muted ? 'Mute' : `${volume.toFixed(1)} dB`} onChange={setVolume}
+              midiId="master-vol"
             />
             <div className="volume-display">
               <div className="volume-meter">

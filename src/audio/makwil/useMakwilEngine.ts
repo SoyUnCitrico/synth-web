@@ -6,7 +6,6 @@ import type { GateDestId } from '../cv/gates';
 import {
   MAKWIL_MOD_SOURCES,
   MAKWIL_MOD_DESTS,
-  MIDI_CC_SOURCES,
   patchKey,
   type ModPatch,
 } from './cv';
@@ -84,8 +83,12 @@ export interface MakwilParams {
   channelPan: number[];
   reverbSends: number[];
   delaySends: number[];
+  chorusSends: number[];
+  chebySends: number[];
   reverbSendEnabled: boolean;
   delaySendEnabled: boolean;
+  chorusSendEnabled: boolean;
+  chebySendEnabled: boolean;
   fxGated: boolean;
   // Filtro
   filterType: BiquadFilterType;
@@ -96,6 +99,11 @@ export interface MakwilParams {
   vcf2Freq: number;
   vcf2Res: number;
   vcf2Source: Vcf2Source;
+  // VCF 3 (insert por voz)
+  vcf3Type: Vcf2Type;
+  vcf3Freq: number;
+  vcf3Res: number;
+  vcf3Source: Vcf2Source;
   // Envolventes de modulación
   ad1Attack: number;
   ad1Decay: number;
@@ -105,6 +113,10 @@ export interface MakwilParams {
   ad2Decay: number;
   ad2Depth: number;
   ad2Curve: EnvCurve;
+  ad3Attack: number;
+  ad3Decay: number;
+  ad3Depth: number;
+  ad3Curve: EnvCurve;
   dahdDelay: number;
   dahdAttack: number;
   dahdHold: number;
@@ -127,6 +139,9 @@ export interface MakwilParams {
   lfo2Type: Tone.ToneOscillatorType;
   lfo2Rate: number;
   lfo2Depth: number;
+  lfo3Type: Tone.ToneOscillatorType;
+  lfo3Rate: number;
+  lfo3Depth: number;
   // Matriz CV
   modPatch: ModPatch;
   // FX de envío
@@ -134,6 +149,11 @@ export interface MakwilParams {
   reverbWet: number;
   delayTime: number;
   delayFeedback: number;
+  chorusRate: number;
+  chorusDepth: number;
+  chorusWet: number;
+  chebyOrder: number;
+  chebyWet: number;
 }
 
 export interface MakwilEngine {
@@ -150,14 +170,12 @@ export interface MakwilEngine {
   /** Fija el pitch de un VCO MONO (VCO2/VCO3/VCO4) sin re-disparar la envolvente. */
   setOscNote: (target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number) => void;
   /** Seguimiento de teclado sobre un filtro (cutoff relativo vía detune, C4 = neutral). */
-  setFilterKeyTrack: (dest: 'filter1' | 'vcf2' | 'noiseFilter', note: string, time?: number) => void;
+  setFilterKeyTrack: (dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number) => void;
   /** Fuentes de CV de los secuenciadores 2..5 (0..1). */
   setSeqCv: (value: number, time?: number) => void;
   setSeqCv2: (value: number, time?: number) => void;
   setSeqCv3: (value: number, time?: number) => void;
   setSeqCv4: (value: number, time?: number) => void;
-  /** Valor de una perilla/CC MIDI (fuente de la matriz). */
-  setCCValue: (slot: number, value: number, time?: number) => void;
   waveformAnalyser: React.RefObject<Tone.Analyser | null>;
   fftAnalyser: React.RefObject<Tone.Analyser | null>;
 }
@@ -195,28 +213,36 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   const masterVolRef = useRef<Tone.Gain | null>(null);
   const lfoRef = useRef<Tone.LFO | null>(null);
   const lfo2Ref = useRef<Tone.LFO | null>(null);
+  const lfo3Ref = useRef<Tone.LFO | null>(null);
   const seqCvRef = useRef<Tone.Signal<'number'> | null>(null);
   const seqCv2Ref = useRef<Tone.Signal<'number'> | null>(null);
   const seqCv3Ref = useRef<Tone.Signal<'number'> | null>(null);
   const seqCv4Ref = useRef<Tone.Signal<'number'> | null>(null);
-  const ccSignalsRef = useRef<Tone.Signal<'number'>[]>([]);
   const matrixRef = useRef<ModMatrix | null>(null);
   const filterRef = useRef<Tone.Filter | null>(null);
   const vcf2Ref = useRef<Tone.Filter | null>(null);
+  const vcf3Ref = useRef<Tone.Filter | null>(null);
   // Envolvente ADSR mono (fuente de la matriz; abre el VCA mono).
   const envelopeRef = useRef<Tone.Envelope | null>(null);
   const ad1Ref = useRef<Tone.Envelope | null>(null);
   const ad2Ref = useRef<Tone.Envelope | null>(null);
+  const ad3Ref = useRef<Tone.Envelope | null>(null);
   const dahdSigRef = useRef<Tone.Signal<'number'> | null>(null);
   const dahdShapeRef = useRef<{ delay: number; attack: number; hold: number; decay: number; curve: EnvCurve }>(
     { delay: 0, attack: 0.01, hold: 0.1, decay: 0.3, curve: 'linear' },
   );
   const reverbRef = useRef<Tone.Reverb | null>(null);
   const delayRef = useRef<Tone.FeedbackDelay | null>(null);
+  const chorusRef = useRef<Tone.Chorus | null>(null);
+  const chebyRef = useRef<Tone.Chebyshev | null>(null);
   const reverbSendRefs = useRef<Tone.Gain[]>([]);
   const delaySendRefs = useRef<Tone.Gain[]>([]);
+  const chorusSendRefs = useRef<Tone.Gain[]>([]);
+  const chebySendRefs = useRef<Tone.Gain[]>([]);
   const synthRevGateRef = useRef<Tone.Gain | null>(null);
   const synthDelGateRef = useRef<Tone.Gain | null>(null);
+  const synthChorusGateRef = useRef<Tone.Gain | null>(null);
+  const synthChebyGateRef = useRef<Tone.Gain | null>(null);
   const fxGateEnvRef = useRef<Tone.Envelope | null>(null);
   const outBusRef = useRef<Tone.Gain | null>(null);
   const waveformRef = useRef<Tone.Analyser | null>(null);
@@ -263,6 +289,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
 
     const filter = new Tone.Filter({ type: params.filterType, frequency: safeFreq(params.filterFreq, 20000), Q: params.filterRes });
     const vcf2 = new Tone.Filter({ type: params.vcf2Type, frequency: params.vcf2Freq, Q: params.vcf2Res, rolloff: -12 });
+    const vcf3 = new Tone.Filter({ type: params.vcf3Type, frequency: params.vcf3Freq, Q: params.vcf3Res, rolloff: -12 });
 
     // ADSR mono (control; abre el VCA mono). Las voces poli usan su propia copia interna.
     const envelope = new Tone.Envelope({
@@ -275,15 +302,19 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
 
     const reverb = new Tone.Reverb({ decay: params.reverbDecay, preDelay: 0.01, wet: params.reverbWet });
     const delay = new Tone.FeedbackDelay({ delayTime: params.delayTime, feedback: params.delayFeedback, wet: 1 });
+    const chorus = new Tone.Chorus({ frequency: params.chorusRate, delayTime: 3.5, depth: params.chorusDepth, feedback: 0.1, wet: params.chorusWet }).start();
+    const cheby = new Tone.Chebyshev({ order: Math.max(1, Math.round(params.chebyOrder)), wet: params.chebyWet });
 
     const waveform = new Tone.Analyser({ type: 'waveform', size: 512, smoothing: 0.8 });
     const fft = new Tone.Analyser({ type: 'fft', size: 512, smoothing: 0.8 });
 
     const lfo = new Tone.LFO({ frequency: params.lfoRate, type: params.lfoType, min: 0, max: 1 });
     const lfo2 = new Tone.LFO({ frequency: params.lfo2Rate, type: params.lfo2Type, min: 0, max: 1 });
+    const lfo3 = new Tone.LFO({ frequency: params.lfo3Rate, type: params.lfo3Type, min: 0, max: 1 });
 
     const ad1 = new Tone.Envelope({ attack: params.ad1Attack, decay: params.ad1Decay, sustain: 0, release: 0.05, attackCurve: params.ad1Curve, decayCurve: params.ad1Curve, releaseCurve: params.ad1Curve });
     const ad2 = new Tone.Envelope({ attack: params.ad2Attack, decay: params.ad2Decay, sustain: 0, release: 0.05, attackCurve: params.ad2Curve, decayCurve: params.ad2Curve, releaseCurve: params.ad2Curve });
+    const ad3 = new Tone.Envelope({ attack: params.ad3Attack, decay: params.ad3Decay, sustain: 0, release: 0.05, attackCurve: params.ad3Curve, decayCurve: params.ad3Curve, releaseCurve: params.ad3Curve });
 
     const dahd = new Tone.Signal(0);
     dahdShapeRef.current = { delay: params.dahdDelay, attack: params.dahdAttack, hold: params.dahdHold, decay: params.dahdDecay, curve: params.dahdCurve };
@@ -292,7 +323,6 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     const seqCv2 = new Tone.Signal(0);
     const seqCv3 = new Tone.Signal(0);
     const seqCv4 = new Tone.Signal(0);
-    const ccSignals = MIDI_CC_SOURCES.map(() => new Tone.Signal(0));
 
     // Ruido → su canal (directo o por el pasabanda según el checkbox).
     noiseFilter.connect(chN);
@@ -303,15 +333,23 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     // Compuertas del envío del sinte a los FX (gateadas por fxGateEnv, ver efecto fxGated).
     const synthRevGate = new Tone.Gain(0);
     const synthDelGate = new Tone.Gain(0);
+    const synthChorusGate = new Tone.Gain(0);
+    const synthChebyGate = new Tone.Gain(0);
     const fxGateEnv = new Tone.Envelope({ attack: 0.005, decay: 0, sustain: 1, release: 0.05 });
 
     const channels = [ch1, ch2, ch3, ch4, chN];
     const reverbSends = channels.map((_, i) => new Tone.Gain(params.reverbSends[i] ?? 0));
     const delaySends = channels.map((_, i) => new Tone.Gain(params.delaySends[i] ?? 0));
+    const chorusSends = channels.map((_, i) => new Tone.Gain(params.chorusSends[i] ?? 0));
+    const chebySends = channels.map((_, i) => new Tone.Gain(params.chebySends[i] ?? 0));
     reverbSends.forEach((s) => s.connect(synthRevGate));
     delaySends.forEach((s) => s.connect(synthDelGate));
+    chorusSends.forEach((s) => s.connect(synthChorusGate));
+    chebySends.forEach((s) => s.connect(synthChebyGate));
     synthRevGate.connect(reverb);
     synthDelGate.connect(delay);
+    synthChorusGate.connect(chorus);
+    synthChebyGate.connect(cheby);
 
     // VCA mono → VCF1. Las voces mono pasan por él; el poli va directo al VCF1.
     monoVca.connect(filter);
@@ -328,6 +366,8 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       else panners[i].connect(monoVca);
       panners[i].connect(reverbSends[i]);
       panners[i].connect(delaySends[i]);
+      panners[i].connect(chorusSends[i]);
+      panners[i].connect(chebySends[i]);
       return g;
     });
 
@@ -343,14 +383,15 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     matrix.registerSource({ id: 'adsr', output: envelope, range: 'unipolar' });
     matrix.registerSource({ id: 'lfo1', output: lfo, range: 'unipolar' });
     matrix.registerSource({ id: 'lfo2', output: lfo2, range: 'unipolar' });
+    matrix.registerSource({ id: 'lfo3', output: lfo3, range: 'unipolar' });
     matrix.registerSource({ id: 'ad1', output: ad1, range: 'unipolar' });
     matrix.registerSource({ id: 'ad2', output: ad2, range: 'unipolar' });
+    matrix.registerSource({ id: 'ad3', output: ad3, range: 'unipolar' });
     matrix.registerSource({ id: 'dahd', output: dahd, range: 'unipolar' });
     matrix.registerSource({ id: 'seqCv', output: seqCv, range: 'unipolar' });
     matrix.registerSource({ id: 'seqCv2', output: seqCv2, range: 'unipolar' });
     matrix.registerSource({ id: 'seqCv3', output: seqCv3, range: 'unipolar' });
     matrix.registerSource({ id: 'seqCv4', output: seqCv4, range: 'unipolar' });
-    MIDI_CC_SOURCES.forEach((src, i) => matrix.registerSource({ id: src.id, output: ccSignals[i], range: 'unipolar' }));
     // VCO1 (poli) no se registra como destino de detune (PolySynth no lo expone modulable).
     matrix.registerDest({ id: 'osc2Detune', param: osc2.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc3Detune', param: osc3.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
@@ -360,6 +401,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     matrix.registerDest({ id: 'filterFreq', param: filter.detune, unitPerAmount: FILTER_MOD_RANGE_CENTS });
     matrix.registerDest({ id: 'filterQ', param: filter.Q, unitPerAmount: 10 });
     matrix.registerDest({ id: 'vcf2Freq', param: vcf2.detune, unitPerAmount: FILTER_MOD_RANGE_CENTS });
+    matrix.registerDest({ id: 'vcf3Freq', param: vcf3.detune, unitPerAmount: FILTER_MOD_RANGE_CENTS });
     matrix.registerDest({ id: 'vcaGain', param: monoVca.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'osc1Level', param: ch1.gain, unitPerAmount: 1 });
     matrix.registerDest({ id: 'osc2Level', param: ch2.gain, unitPerAmount: 1 });
@@ -375,6 +417,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     noise.start();
     lfo.start();
     lfo2.start();
+    lfo3.start();
 
     polySynthRef.current = polySynth;
     osc2Ref.current = osc2;
@@ -393,24 +436,32 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     masterVolRef.current = masterVol;
     lfoRef.current = lfo;
     lfo2Ref.current = lfo2;
+    lfo3Ref.current = lfo3;
     matrixRef.current = matrix;
     filterRef.current = filter;
     vcf2Ref.current = vcf2;
+    vcf3Ref.current = vcf3;
     envelopeRef.current = envelope;
     ad1Ref.current = ad1;
     ad2Ref.current = ad2;
+    ad3Ref.current = ad3;
     dahdSigRef.current = dahd;
     seqCvRef.current = seqCv;
     seqCv2Ref.current = seqCv2;
     seqCv3Ref.current = seqCv3;
     seqCv4Ref.current = seqCv4;
-    ccSignalsRef.current = ccSignals;
     reverbRef.current = reverb;
     delayRef.current = delay;
+    chorusRef.current = chorus;
+    chebyRef.current = cheby;
     reverbSendRefs.current = reverbSends;
     delaySendRefs.current = delaySends;
+    chorusSendRefs.current = chorusSends;
+    chebySendRefs.current = chebySends;
     synthRevGateRef.current = synthRevGate;
     synthDelGateRef.current = synthDelGate;
+    synthChorusGateRef.current = synthChorusGate;
+    synthChebyGateRef.current = synthChebyGate;
     fxGateEnvRef.current = fxGateEnv;
     outBusRef.current = outBus;
     waveformRef.current = waveform;
@@ -435,23 +486,31 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       matrix.dispose();
       lfo.dispose();
       lfo2.dispose();
+      lfo3.dispose();
       filter.dispose();
       vcf2.dispose();
+      vcf3.dispose();
       envelope.dispose();
       ad1.dispose();
       ad2.dispose();
+      ad3.dispose();
       dahd.dispose();
       seqCv.dispose();
       seqCv2.dispose();
       seqCv3.dispose();
       seqCv4.dispose();
-      ccSignals.forEach((s) => s.dispose());
       reverb.dispose();
       delay.dispose();
+      chorus.dispose();
+      cheby.dispose();
       reverbSends.forEach((g) => g.dispose());
       delaySends.forEach((g) => g.dispose());
+      chorusSends.forEach((g) => g.dispose());
+      chebySends.forEach((g) => g.dispose());
       synthRevGate.dispose();
       synthDelGate.dispose();
+      synthChorusGate.dispose();
+      synthChebyGate.dispose();
       fxGateEnv.dispose();
       outBus.dispose();
       waveform.dispose();
@@ -571,6 +630,14 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     const now = Tone.now();
     delaySendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.delaySends[i] ?? 0, now));
   }, [params.delaySends]);
+  useEffect(() => {
+    const now = Tone.now();
+    chorusSendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.chorusSends[i] ?? 0, now));
+  }, [params.chorusSends]);
+  useEffect(() => {
+    const now = Tone.now();
+    chebySendRefs.current.forEach((g, i) => g.gain.setValueAtTime(params.chebySends[i] ?? 0, now));
+  }, [params.chebySends]);
 
   // Retorno de cada efecto de envío.
   useEffect(() => {
@@ -587,23 +654,31 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     delay.disconnect();
     if (params.delaySendEnabled) delay.connect(outBus);
   }, [params.delaySendEnabled]);
+  useEffect(() => {
+    const chorus = chorusRef.current;
+    const outBus = outBusRef.current;
+    if (!chorus || !outBus) return;
+    chorus.disconnect();
+    if (params.chorusSendEnabled) chorus.connect(outBus);
+  }, [params.chorusSendEnabled]);
+  useEffect(() => {
+    const cheby = chebyRef.current;
+    const outBus = outBusRef.current;
+    if (!cheby || !outBus) return;
+    cheby.disconnect();
+    if (params.chebySendEnabled) cheby.connect(outBus);
+  }, [params.chebySendEnabled]);
 
   // Compuerta de FX (gateada por la nota si hay fuente conectada a 'fx').
   useEffect(() => {
-    const rev = synthRevGateRef.current;
-    const del = synthDelGateRef.current;
+    const gates = [synthRevGateRef.current, synthDelGateRef.current, synthChorusGateRef.current, synthChebyGateRef.current];
     const env = fxGateEnvRef.current;
-    if (!rev || !del || !env) return;
+    if (gates.some((g) => !g) || !env) return;
     env.disconnect();
     const now = Tone.now();
-    if (params.fxGated) {
-      rev.gain.setValueAtTime(0, now);
-      del.gain.setValueAtTime(0, now);
-      env.connect(rev.gain);
-      env.connect(del.gain);
-    } else {
-      rev.gain.setValueAtTime(1, now);
-      del.gain.setValueAtTime(1, now);
+    for (const g of gates) {
+      g!.gain.setValueAtTime(params.fxGated ? 0 : 1, now);
+      if (params.fxGated) env.connect(g!.gain);
     }
   }, [params.fxGated]);
 
@@ -626,24 +701,39 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     f.Q.setValueAtTime(params.vcf2Res, now);
   }, [params.vcf2Type, params.vcf2Freq, params.vcf2Res]);
 
-  // VCF 2: routeo de la voz seleccionada (VCO1 poli incluido como índice 0).
+  // VCF 3
+  useEffect(() => {
+    const f = vcf3Ref.current;
+    if (!f) return;
+    const now = Tone.now();
+    f.type = params.vcf3Type;
+    f.frequency.setValueAtTime(params.vcf3Freq, now);
+    f.Q.setValueAtTime(params.vcf3Res, now);
+  }, [params.vcf3Type, params.vcf3Freq, params.vcf3Res]);
+
+  // VCF 2 + VCF 3: routeo de los inserts por voz (VCO1 poli incluido como índice 0). Cada
+  // filtro puede insertarse sobre una voz; si ambos eligen la MISMA voz se encadenan vcf2 → vcf3.
+  // Este efecto también establece el cableado inicial osc → canal (corre al montar).
   useEffect(() => {
     const srcs: (Tone.ToneAudioNode | null)[] = [polySynthRef.current, osc2Ref.current, osc3Ref.current, osc4Ref.current];
     const chs = [ch1Ref.current, ch2Ref.current, ch3Ref.current, ch4Ref.current];
     const vcf2 = vcf2Ref.current;
-    if (srcs.some((o) => !o) || chs.some((c) => !c) || !vcf2) return;
-    const srcIndex: number = { none: -1, vco1: 0, vco2: 1, vco3: 2, vco4: 3 }[params.vcf2Source];
+    const vcf3 = vcf3Ref.current;
+    if (srcs.some((o) => !o) || chs.some((c) => !c) || !vcf2 || !vcf3) return;
+    const idxOf = (s: Vcf2Source): number => ({ none: -1, vco1: 0, vco2: 1, vco3: 2, vco4: 3 }[s]);
+    const i2 = idxOf(params.vcf2Source);
+    const i3 = idxOf(params.vcf3Source);
     vcf2.disconnect();
+    vcf3.disconnect();
     srcs.forEach((osc, i) => {
       osc!.disconnect();
-      if (i === srcIndex) {
-        osc!.connect(vcf2);
-        vcf2.connect(chs[i]!);
-      } else {
-        osc!.connect(chs[i]!);
-      }
+      // Cadena de inserts para esta voz, en orden vcf2 → vcf3.
+      let node: Tone.ToneAudioNode = osc!;
+      if (i === i2) { node.connect(vcf2); node = vcf2; }
+      if (i === i3) { node.connect(vcf3); node = vcf3; }
+      node.connect(chs[i]!);
     });
-  }, [params.vcf2Source]);
+  }, [params.vcf2Source, params.vcf3Source]);
 
   // Envolventes AD
   useEffect(() => {
@@ -664,6 +754,15 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     ad.decayCurve = params.ad2Curve;
     ad.releaseCurve = params.ad2Curve;
   }, [params.ad2Attack, params.ad2Decay, params.ad2Curve]);
+  useEffect(() => {
+    const ad = ad3Ref.current;
+    if (!ad) return;
+    ad.attack = params.ad3Attack;
+    ad.decay = params.ad3Decay;
+    ad.attackCurve = params.ad3Curve;
+    ad.decayCurve = params.ad3Curve;
+    ad.releaseCurve = params.ad3Curve;
+  }, [params.ad3Attack, params.ad3Decay, params.ad3Curve]);
 
   // DAHD: guarda los tiempos vivos (se aplican al disparar).
   useEffect(() => {
@@ -708,6 +807,12 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   useEffect(() => {
     lfo2Ref.current?.frequency.setValueAtTime(params.lfo2Rate, Tone.now());
   }, [params.lfo2Rate]);
+  useEffect(() => {
+    if (lfo3Ref.current) lfo3Ref.current.type = params.lfo3Type;
+  }, [params.lfo3Type]);
+  useEffect(() => {
+    lfo3Ref.current?.frequency.setValueAtTime(params.lfo3Rate, Tone.now());
+  }, [params.lfo3Rate]);
 
   // Matriz: amounts por intersección + base del VCA mono.
   useEffect(() => {
@@ -717,15 +822,16 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       adsr: params.adsrDepth,
       lfo1: params.lfoDepth,
       lfo2: params.lfo2Depth,
+      lfo3: params.lfo3Depth,
       ad1: params.ad1Depth,
       ad2: params.ad2Depth,
+      ad3: params.ad3Depth,
       dahd: params.dahdDepth,
       seqCv: 1,
       seqCv2: 1,
       seqCv3: 1,
       seqCv4: 1,
     };
-    for (const src of MIDI_CC_SOURCES) depths[src.id] = 1;
     let vcaModulated = false;
     for (const src of MAKWIL_MOD_SOURCES) {
       const depth = depths[src.id] ?? 0;
@@ -743,8 +849,10 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     params.adsrDepth,
     params.lfoDepth,
     params.lfo2Depth,
+    params.lfo3Depth,
     params.ad1Depth,
     params.ad2Depth,
+    params.ad3Depth,
     params.dahdDepth,
   ]);
 
@@ -767,6 +875,25 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     delayRef.current?.feedback.setValueAtTime(params.delayFeedback, Tone.now());
   }, [params.delayFeedback]);
 
+  // Chorus
+  useEffect(() => {
+    chorusRef.current?.frequency.setValueAtTime(params.chorusRate, Tone.now());
+  }, [params.chorusRate]);
+  useEffect(() => {
+    if (chorusRef.current) chorusRef.current.depth = params.chorusDepth;
+  }, [params.chorusDepth]);
+  useEffect(() => {
+    chorusRef.current?.wet.setValueAtTime(params.chorusWet, Tone.now());
+  }, [params.chorusWet]);
+
+  // Chebyshev (el orden es entero; se reconstruye la curva al cambiarlo).
+  useEffect(() => {
+    if (chebyRef.current) chebyRef.current.order = Math.max(1, Math.round(params.chebyOrder));
+  }, [params.chebyOrder]);
+  useEffect(() => {
+    chebyRef.current?.wet.setValueAtTime(params.chebyWet, Tone.now());
+  }, [params.chebyWet]);
+
   // --- API imperativa ---
   const polyAttack = useCallback((note: string, time?: number, velocity = 1) => {
     if (Tone.context.state !== 'running') Tone.start();
@@ -784,8 +911,8 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     osc?.frequency.setValueAtTime(Tone.Frequency(note).toFrequency(), time ?? Tone.now());
   }, []);
 
-  const setFilterKeyTrack = useCallback((dest: 'filter1' | 'vcf2' | 'noiseFilter', note: string, time?: number) => {
-    const ref = { filter1: filterRef, vcf2: vcf2Ref, noiseFilter: noiseFilterRef }[dest];
+  const setFilterKeyTrack = useCallback((dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number) => {
+    const ref = { filter1: filterRef, vcf2: vcf2Ref, vcf3: vcf3Ref, noiseFilter: noiseFilterRef }[dest];
     const filter = ref.current;
     if (!filter) return;
     const cents = (Tone.Frequency(note).toMidi() - 60) * 100;
@@ -796,6 +923,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     if (dest === 'amp') return envelopeRef.current;
     if (dest === 'ad1') return ad1Ref.current;
     if (dest === 'ad2') return ad2Ref.current;
+    if (dest === 'ad3') return ad3Ref.current;
     if (dest === 'fx') return fxGateEnvRef.current;
     return null;
   }, []);
@@ -858,9 +986,6 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   const setSeqCv4 = useCallback((value: number, time?: number) => {
     seqCv4Ref.current?.setValueAtTime(value, time ?? Tone.now());
   }, []);
-  const setCCValue = useCallback((slot: number, value: number, time?: number) => {
-    ccSignalsRef.current[slot]?.setValueAtTime(value, time ?? Tone.now());
-  }, []);
 
   return useMemo(
     () => ({
@@ -875,10 +1000,9 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       setSeqCv2,
       setSeqCv3,
       setSeqCv4,
-      setCCValue,
       waveformAnalyser: waveformRef,
       fftAnalyser: fftRef,
     }),
-    [polyAttack, polyRelease, polyReleaseAll, envAttack, envRelease, setOscNote, setFilterKeyTrack, setSeqCv, setSeqCv2, setSeqCv3, setSeqCv4, setCCValue],
+    [polyAttack, polyRelease, polyReleaseAll, envAttack, envRelease, setOscNote, setFilterKeyTrack, setSeqCv, setSeqCv2, setSeqCv3, setSeqCv4],
   );
 }

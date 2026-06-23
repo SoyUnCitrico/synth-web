@@ -10,7 +10,7 @@
  */
 
 export type GateSourceId = 'keyboard' | 'midi' | 'seq1' | 'seq2' | 'seq3' | 'seq4' | 'seq5';
-export type GateDestId = 'amp' | 'ad1' | 'ad2' | 'dahd' | 'fx';
+export type GateDestId = 'amp' | 'ad1' | 'ad2' | 'ad3' | 'dahd' | 'fx';
 
 export interface GateSourceCfg {
   id: GateSourceId;

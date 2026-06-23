@@ -12,7 +12,7 @@
  */
 
 export type NoteSourceId = 'keyboard' | 'midi' | 'seq1' | 'seq2' | 'seq3';
-export type NoteDestId = 'osc1' | 'osc2' | 'osc3' | 'osc4' | 'filter1' | 'vcf2' | 'noiseFilter' | 'quant';
+export type NoteDestId = 'osc1' | 'osc2' | 'osc3' | 'osc4' | 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter' | 'quant';
 
 export interface NoteSourceCfg {
   id: NoteSourceId;

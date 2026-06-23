@@ -1,0 +1,27 @@
+/* Capa de fondo generativo: fija a pantalla completa, detrás de todo y sin
+   capturar eventos del puntero. La opacidad fina se controla en el canvas
+   (alpha por flor); aquí solo la posición y un fundido suave en los bordes. */
+.flower-field {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Detrás del sinte queda aún más discreto; en About se ve pleno. */
+.flower-field--subtle {
+  opacity: 0.85;
+}
+.flower-field--full {
+  opacity: 1;
+}
+
+/* Si el usuario pide menos movimiento, el componente no se monta; por si acaso,
+   ocultamos cualquier resto. */
+@media (prefers-reduced-motion: reduce) {
+  .flower-field {
+    display: none;
+  }
+}

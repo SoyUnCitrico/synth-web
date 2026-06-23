@@ -64,3 +64,12 @@ export const AUDIO_FREQ_SCALE = new LogScale(20, 20000);
 export const OSC_FREQ_SCALE = new LogScale(20, 8000);
 /** Velocidad del LFO (Hz): más resolución en velocidades lentas. */
 export const LFO_RATE_SCALE = new LogScale(0.1, 20);
+/** Tiempos de envolvente (segundos): control exponencial, más resolución en tiempos cortos. */
+export const ENV_ATTACK_SCALE = new LogScale(0.01, 2);
+export const ENV_DECAY_SCALE = new LogScale(0.01, 3);
+/** Decay de la reverb (segundos): exponencial, más resolución en colas cortas. */
+export const REVERB_DECAY_SCALE = new LogScale(0.1, 10);
+/** Tiempo del delay (segundos): exponencial, más resolución en ecos cortos. */
+export const DELAY_TIME_SCALE = new LogScale(0.01, 1);
+/** Velocidad del chorus (Hz): exponencial, más resolución en velocidades lentas. */
+export const CHORUS_RATE_SCALE = new LogScale(0.1, 10);

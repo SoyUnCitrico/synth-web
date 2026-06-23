@@ -1,0 +1,268 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Tema "CÓDICE MEXICA" para Makwil (NEO-MEXICA)
+   ─────────────────────────────────────────────────────────────────────────
+   Fondo de papel viejo/arrugado + módulos de obsidiana con grecas escalonadas
+   y glifos aztecas en las esquinas. Paleta propia de Makwil (rojo principal,
+   amarillo/verde secundarios, azul destacado) — todo SCOPED bajo `.makwil-codex`
+   / `body.makwil-codex` → Modulor queda intacto.
+
+   Recurso reutilizable: GRECA recoloreable = SVG step-fret inline como `mask`;
+   el color sale de `background: var(--accent)`. Sin gradientes en las grecas.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens: obsidiana cálida (módulos) + PALETA NUEVA solo Makwil ──
+   Se heredan por todos los descendientes del body, incluido el Header. NO se
+   tocan los tokens de :root (index.css) → Modulor sigue cian/magenta. */
+body.makwil-codex {
+  /* Superficies de obsidiana cálida (los módulos siguen oscuros). */
+  --panel-hi: #2c2318;
+  --panel-mid: #17120d;
+  --panel-lo: #0b0807;
+  --groove: #0a0705;
+  --line: #5a4226;
+  --ink: #e9dcc0;
+  --ink-dim: #a7926d;
+
+  /* Paleta Makwil: rojo principal · amarillo+verde secundarios · azul destacado. */
+  --magenta: #FE0000;     /* rojo — principal (reemplaza el morado) */
+  --cyan: #016DCD;        /* azul — destacado */
+  --cyan-deep: #014e93;
+  --amber: #FECE01;       /* amarillo — secundario */
+  --amber-soft: #FFE066;
+  --led-green: #056E04;   /* verde — secundario */
+
+  /* Tinta de greca/glifo de los marcos (oro viejo de códice). */
+  --greca-ink: #c79a4b;
+  --greca-glow: rgba(199, 154, 75, 0.5);
+}
+
+/* ── Fondo: papel viejo y arrugado, claro (sin tonos oscuros) ──
+   Base clara + arrugas (feTurbulence baja frecuencia) y grano (alta) inline,
+   fundidos con `multiply`. Sin viñeta quemada ni manchas marrones oscuras. */
+body.makwil-codex {
+  background-color: #e7d6ad;
+  background-image:
+    /* grano fino de papel (multiply, muy tenue) */
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='200'%20height='200'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.85'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3CfeFuncG%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3CfeFuncB%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='200'%20height='200'%20filter='url(%23g)'/%3E%3C/svg%3E"),
+    /* arrugas / relieve grande del papel (multiply) */
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='420'%3E%3Cfilter%20id='w'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.012'%20numOctaves='4'%20seed='8'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type='linear'%20slope='0.35'%20intercept='0.6'/%3E%3CfeFuncG%20type='linear'%20slope='0.35'%20intercept='0.6'/%3E%3CfeFuncB%20type='linear'%20slope='0.35'%20intercept='0.6'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='420'%20height='420'%20filter='url(%23w)'/%3E%3C/svg%3E"),
+    /* mancha clara muy tenue para evitar planitud (normal) */
+    radial-gradient(720px 520px at 80% 18%, rgba(150, 120, 70, 0.10), transparent 60%),
+    /* base de papel clara (normal) */
+    linear-gradient(180deg, #ece0c0 0%, #e6d6ac 55%, #ddcc9e 100%);
+  background-size: 200px 200px, 420px 420px, auto, auto;
+  background-blend-mode: multiply, multiply, normal, normal;
+  background-attachment: fixed;
+}
+
+/* Franjas de greca en los bordes superior/inferior de la página (tinta sepia
+   tenue sobre el papel). */
+.makwil-codex {
+  margin: -1rem auto 0;
+  position: relative;
+}
+/* .makwil-codex::before, */
+.makwil-codex::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 15px;
+  pointer-events: none;
+  background: rgba(92, 58, 22, 0.4);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 15px;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 15px;
+}
+/* .makwil-codex::before { top: 0; } */
+.makwil-codex::after { bottom: 3.5rem; transform: scaleY(-1); }
+
+/* ── Título: tinta de códice grabada con halo neón de la paleta ── */
+.makwil-codex .synthTitle {
+
+  color: #3a2410;
+  text-shadow:
+    0 1px 0 rgba(255, 240, 210, 0.5),
+    0 0 14px rgba(1, 109, 205, 0.35),
+    0 0 26px rgba(254, 0, 0, 0.22);
+}
+.makwil-codex .synthTitle::after, .makwil-codex .synthTitle::before {
+  content: "";
+  display: block;
+  width: min(480px, 100%);
+  height: 14px;
+  margin: 0.5rem auto;
+  background: #5c3a16;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 14px;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 14px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PALETA POR FAMILIA DE MÓDULO (overrides de --accent/--glow, ganan por scope)
+   Fuentes→rojo · Filtros→amarillo · Envolventes+Mixer→verde · Mod/FX/Seq→azul
+   ════════════════════════════════════════════════════════════════════════ */
+.makwil-codex .vco-module,
+.makwil-codex .noise-module {
+  --accent: #FE0000;
+  --glow: rgba(254, 0, 0, 0.45);
+}
+.makwil-codex .vcf-module,
+.makwil-codex .vcf2-module {
+  --accent: #FECE01;
+  --glow: rgba(254, 206, 1, 0.45);
+}
+.makwil-codex .adsr-module,
+.makwil-codex .filterenv-module,
+.makwil-codex .dahd-module,
+.makwil-codex .vca-module {
+  --accent: #19A516;   /* verde con más brillo (legible sobre la obsidiana) */
+  --glow: rgba(25, 165, 22, 0.55);
+}
+.makwil-codex .lfo-module,
+.makwil-codex .reverb-module,
+.makwil-codex .delay-module,
+.makwil-codex .chorus-module,
+.makwil-codex .cheby-module,
+.makwil-codex .patch-module,
+.makwil-codex .sequencer-module {
+  --accent: #016DCD;
+  --glow: rgba(1, 109, 205, 0.45);
+}
+/* ════════════════════════════════════════════════════════════════════════
+   MÓDULOS: faceplate de obsidiana + grecas y glifos en el color del módulo
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Cara de obsidiana cálida. Las grecas y los glifos de esquina viven en los
+   pseudo-elementos (mask + var(--accent)) para tomar el color del tema. */
+.makwil-codex .module {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(120, 86, 38, 0.10), transparent 60%),
+    linear-gradient(180deg, var(--panel-hi) 0, var(--panel-mid) 8%, var(--panel-mid) 92%, var(--panel-lo) 100%);
+  border: 1px solid #1c130a;
+  box-shadow:
+    inset 0 1px 0 rgba(199, 154, 75, 0.18),
+    inset 0 -14px 26px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(90, 66, 38, 0.5),
+    0 10px 22px rgba(40, 24, 8, 0.55),
+    0 0 14px var(--glow);
+  padding-top: 1.5rem;
+  padding-bottom: 1.7rem;
+}
+
+/* Greca SUPERIOR + glifos de las esquinas superiores. Todo en var(--accent)
+   (color del tema del módulo), vía múltiples capas de `mask`. Sin gradientes. */
+.makwil-codex .module::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--accent);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") center top 5px / 24px 12px repeat-x,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'%20fill='black'/%3E%3C/svg%3E") left 7px top 7px / 16px 16px no-repeat,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(90%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") right 7px top 7px / 16px 16px no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") center top 5px / 24px 12px repeat-x,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'%20fill='black'/%3E%3C/svg%3E") left 7px top 7px / 16px 16px no-repeat,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(90%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") right 7px top 7px / 16px 16px no-repeat;
+  filter: drop-shadow(0 0 2px var(--glow));
+  opacity: 0.6;
+}
+
+/* Greca INFERIOR + glifos de las esquinas inferiores (reutiliza el ::after de
+   los tornillos). Mismo color del tema vía mask. */
+.makwil-codex .module::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--accent);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") center bottom 5px / 24px 12px repeat-x,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(180%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") right 7px bottom 7px / 16px 16px no-repeat,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(270%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") left 7px bottom 7px / 16px 16px no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") center bottom 5px / 24px 12px repeat-x,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(180%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") right 7px bottom 7px / 16px 16px no-repeat,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2014%2014'%3E%3Cg%20transform='rotate(270%207%207)'%3E%3Cpath%20d='M2,2H12V4H4V12H2ZM6,6H12V8H8V12H6Z'/%3E%3C/g%3E%3C/svg%3E") left 7px bottom 7px / 16px 16px no-repeat;
+  filter: drop-shadow(0 0 2px var(--glow));
+  opacity: 0.6;
+}
+
+/* Cabecera: divisor en tinta dorada de códice. */
+.makwil-codex .module-header {
+  border-bottom-color: var(--greca-ink);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MATRIZ DE PATCHEO: "circuitos → grecas" (trazos de greca en bronce)
+   ════════════════════════════════════════════════════════════════════════ */
+.makwil-codex .patch-matrix th,
+.makwil-codex .patch-matrix td {
+  border-color: rgba(199, 154, 75, 0.22);
+}
+.makwil-codex .patch-cell {
+  background:
+    radial-gradient(circle at 50% 40%, #1a130b, #0a0705),
+    repeating-linear-gradient(45deg, rgba(199, 154, 75, 0.10) 0 2px, transparent 2px 6px);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   HEADER y BOTTOM NAV: pergamino (sin fondo oscuro) + greca sólida tenue
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Header en papel claro + texto a tinta oscura legible. */
+body.makwil-codex .header-nav {
+  background:
+    radial-gradient(720px 200px at 80% 0%, rgba(150, 120, 70, 0.10), transparent 60%),
+    linear-gradient(180deg, #ece0c0 0%, #e2d2a6 100%);
+  border-bottom: 1px solid var(--greca-ink);
+  box-shadow: 0 6px 16px rgba(60, 38, 14, 0.18);
+  color: #3a2410;
+}
+body.makwil-codex .logo-container h4 {
+  color: #3a2410;
+  text-shadow: 0 1px 0 rgba(255, 240, 210, 0.5);
+}
+body.makwil-codex .logo-container svg {
+  color: var(--cyan);
+  filter: drop-shadow(0 0 6px rgba(1, 109, 205, 0.5));
+}
+/* Greca inferior del header: color SÓLIDO (azul destacado), sin gradiente. */
+body.makwil-codex .header-nav::after {
+  height: 12px;
+  bottom: -3px;
+  background: var(--cyan);
+  box-shadow: none;
+  opacity: 0.7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 12px;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 12px;
+  filter: none;
+}
+
+/* Nav inferior en papel claro + greca sólida tenue arriba. */
+body.makwil-codex .bottom-nav {
+  /* Mismo papel que el header. */
+  background:
+    radial-gradient(720px 200px at 80% 0%, rgba(150, 120, 70, 0.10), transparent 60%),
+    linear-gradient(180deg, #ece0c0d3 0%, #e2d2a6d8 100%);
+  border-top: 1px solid var(--greca-ink);
+  box-shadow: 0 -6px 16px rgba(60, 38, 14, 0.18);
+}
+body.makwil-codex .bottom-nav::before {
+  height: 12px;
+  top: -3px;
+  background: var(--cyan);
+  box-shadow: none;
+  opacity: 0.7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 12px;
+          mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 12px;
+  filter: none;
+}
+
+/* Separadores de canal del secuenciador: tono bronce acorde al códice. */
+.makwil-codex .seq-channel {
+  border-top-color: rgba(199, 154, 75, 0.22);
+}

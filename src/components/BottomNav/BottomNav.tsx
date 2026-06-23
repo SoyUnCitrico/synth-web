@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
-import { PiPianoKeysFill } from 'react-icons/pi';
 import { useTransport } from '../../audio/sequencer/transport';
 import { MODULE_SECTIONS, type ModuleSection } from './sections';
+import logoIcon from '../../assets/modulorLogo.svg';
 import './BottomNav.css';
 
 // Etiquetas por defecto de la fila de on/off: 5 voces (VCO1-3, FM y Ruido) y 4 de batería.
@@ -90,7 +90,7 @@ const BottomNav: React.FC<BottomNavProps> = ({
           aria-expanded={open}
           aria-label="Índice de módulos"
         >
-          <PiPianoKeysFill />
+          <img src={logoIcon} width={32} height={32} />
         </button>
         {open && (
           <ul className="bottom-nav-menu">

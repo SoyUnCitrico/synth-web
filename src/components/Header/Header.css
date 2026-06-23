@@ -34,19 +34,36 @@
 }
 
 .logo-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+}
+/* El logo+label es ahora un disparador de menú: botón sin chrome propio. */
+.logo-trigger {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 2px 8px 2px 2px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.logo-container svg {
-    margin-left: 8px;
+.logo-trigger:hover,
+.logo-trigger.open {
+    border-color: var(--line);
+    box-shadow: 0 0 10px rgba(25, 229, 255, 0.25);
+}
+.logo-trigger img {
+    margin-left: 6px;
     height: 38px;
     width: 38px;
-    color: var(--cyan);
     filter: drop-shadow(0 0 8px rgba(25, 229, 255, 0.7));
 }
-.logo-container h4 {
-    margin: 8px;
+.logo-trigger h4 {
+    margin: 8px 2px;
     text-align: center;
     font-family: var(--font-display);
     font-weight: 700;
@@ -55,6 +72,53 @@
     text-transform: uppercase;
     color: var(--ink);
     text-shadow: 0 0 10px rgba(25, 229, 255, 0.4);
+}
+.logo-caret {
+    font-size: 0.8rem;
+    color: var(--cyan);
+    transition: transform 0.2s ease;
+}
+.logo-trigger.open .logo-caret {
+    transform: rotate(180deg);
+}
+
+/* ── Menú desplegable de navegación ── */
+.header-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--panel-hi) 0%, var(--panel-mid) 100%);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+.header-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.header-menu-item:hover {
+    background: rgba(25, 229, 255, 0.10);
+    color: var(--cyan);
+}
+.header-menu-item .ext-mark {
+    color: var(--amber-soft);
+    font-size: 0.85rem;
 }
 
 /* ── Transporte del secuenciador en el header ── */

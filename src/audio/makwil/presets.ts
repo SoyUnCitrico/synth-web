@@ -64,6 +64,11 @@ export interface MakwilPresetState {
   vcf2Freq: number;
   vcf2Res: number;
   vcf2Source: Vcf2Source;
+  // --- VCF 3 (insert por voz) ---
+  vcf3Type: Vcf2Type;
+  vcf3Freq: number;
+  vcf3Res: number;
+  vcf3Source: Vcf2Source;
   // --- Envolventes AD (modulación) ---
   ad1Attack: number;
   ad1Decay: number;
@@ -73,6 +78,10 @@ export interface MakwilPresetState {
   ad2Decay: number;
   ad2Amount: number;
   ad2Curve: EnvCurve;
+  ad3Attack: number;
+  ad3Decay: number;
+  ad3Amount: number;
+  ad3Curve: EnvCurve;
   // --- Envolvente DAHD (modulación) ---
   dahdDelay: number;
   dahdAttack: number;
@@ -96,11 +105,23 @@ export interface MakwilPresetState {
   lfo2Type: Tone.ToneOscillatorType;
   lfo2Rate: number;
   lfo2Depth: number;
-  // --- Reverb / Delay (envíos) ---
+  lfo3Type: Tone.ToneOscillatorType;
+  lfo3Rate: number;
+  lfo3Depth: number;
+  // --- Reverb / Delay / Chorus / Chebyshev (envíos) ---
   reverbDecay: number;
   reverbWet: number;
   delayTime: number;
   delayFeedback: number;
+  chorusRate: number;
+  chorusDepth: number;
+  chorusWet: number;
+  chebyOrder: number;
+  chebyWet: number;
+  chorusSends: number[];
+  chebySends: number[];
+  chorusSendEnabled: boolean;
+  chebySendEnabled: boolean;
   // --- Matrices de modulación ---
   modPatch: ModPatch;
   gatePatch: GatePatch;

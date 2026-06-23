@@ -1,5 +1,6 @@
 import React from 'react';
-import Fader from '../../Fader/Fader';
+import Knob from '../../Knob/Knob';
+import { REVERB_DECAY_SCALE } from '../../../utils/scale';
 
 interface ReverbProps {
   decay: number; // segundos
@@ -16,15 +17,15 @@ const Reverb: React.FC<ReverbProps> = ({ decay, setDecay, wet, setWet }) => {
         <h2>Reverb</h2>
       </div>
       <div className="module-controls row">
-        <Fader 
-          id="reverb-decay-fader" label="Decay" min={0.1} max={10} step={0.1}
-          value={decay} display={`${decay.toFixed(2)}s`} onChange={setDecay}
+        {/* Decay con escala logarítmica (exponencial); wet lineal. */}
+        <Knob
+          id="reverb-decay-fader" label="Decay" scale={REVERB_DECAY_SCALE} step={0.1}
+          value={decay} display={`${decay.toFixed(2)}s`} onChange={setDecay} midiId="reverb-decay"
         />
-        <Fader 
+        <Knob
           id="reverb-wet-fader" label="Wet" min={0} max={1} step={0.01}
-          value={wet} display={`${(wet * 100).toFixed(0)}%`} onChange={setWet}
-        />  
-       
+          value={wet} display={`${(wet * 100).toFixed(0)}%`} onChange={setWet} midiId="reverb-wet"
+        />
       </div>
     </div>
   );

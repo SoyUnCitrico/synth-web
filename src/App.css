@@ -16,7 +16,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin-bottom: 2rem;
   padding: 0 0.5rem;
 }
@@ -93,14 +93,58 @@
 .dahd-module      { --accent: #6bd0ff;       --glow: rgba(107, 208, 255, 0.45); }
 .reverb-module    { --accent: #36e0c8;       --glow: rgba(54, 224, 200, 0.45); }
 .delay-module     { --accent: #7dd3fc;       --glow: rgba(125, 211, 252, 0.45); }
+.chorus-module    { --accent: #9ae6b4;        --glow: rgba(154, 230, 180, 0.45); }
+.cheby-module     { --accent: #ff9f6b;        --glow: rgba(255, 159, 107, 0.45); }
 .drums-module     { --accent: #ffd166;        --glow: rgba(255, 209, 102, 0.45); }
 
 /* ─────────────────────────────────────────────────────────────
-   Fila de generadores de envolvente (ADSR · AD 1 · AD 2 · DAHD):
-   ocupa su propio renglón completo del grid y reparte los cuatro
-   módulos en una sola fila (se apilan a 2×2 / 1×N en pantallas
-   estrechas). Faders algo más compactos para que quepan.
+   MIDI-learn directo: estado de un control armado (a la espera de CC)
+   y badge del CC asignado. Solo aparece bajo un MidiLearnProvider activo
+   (Makwil); en Modulor las clases nunca se aplican.
    ───────────────────────────────────────────────────────────── */
+.knob-wrap.midi-armed .knob,
+.fader.midi-armed .control-slider {
+  outline: 2px solid var(--led-amber);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px var(--led-display-glow);
+  animation: midi-arm-pulse 0.9s ease-in-out infinite;
+}
+@keyframes midi-arm-pulse {
+  0%, 100% { outline-color: var(--led-amber); }
+  50%      { outline-color: transparent; }
+}
+.midi-cc-badge {
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 1px 4px;
+  margin-top: 2px;
+  border-radius: 3px;
+  color: var(--bg, #0a0e14);
+  background: var(--led-green);
+  letter-spacing: 0.02em;
+}
+.knob-wrap,
+.fader { position: relative; }
+
+.filter-row {
+  grid-column: 1 / -1;
+  flex: 1 1 100%;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.vco-row {
+  grid-column: 1 / -1;
+  flex: 1 1 100%;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+}
 .envelope-row {
   grid-column: 1 / -1;
   flex: 1 1 100%;
@@ -111,9 +155,7 @@
   align-items: stretch;
 }
 .envelope-row .module {
-  min-width: 0;
-  flex: 1 1 250px;
-  max-width: 340px;
+  flex: 1 1 220px;
 }
 .envelope-row .fader-bank {
   gap: 0.5rem;
@@ -122,25 +164,18 @@
   height: 108px;
 }
 
-.lfo-row {
-  grid-column: 1 / -1;
-  flex: 1 1 100%;
+.fx-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 0.5rem 1rem;
   width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: stretch;
 }
 
-.lfo-row .module {
-  min-width: 0;
-  flex: 1 1 250px;
+.fx-column .module {
+  min-width: 100px;
   max-width: 340px;
 }
 
-.lfo-row .control-slider.vertical {
-  height: 180px;
-}
 
 .module-big {
   position: relative;
@@ -517,9 +552,17 @@ input:focus + .slider {
   .matrix-row {
     grid-template-columns: 1fr;
   }
+  .fx-column, .lfo-column, .envelope-column {
+    grid-template-columns: 1fr;
+    padding-right: 1rem;
+    
+  }
+
+  .fx-column .module, .lfo-column .module, .envelope-column .module{
+    min-width: 100%;
+  }
   /* Módulos pequeños: uno por fila también (no 2-up). */
-  .envelope-row .module,
-  .lfo-row .module {
+  .envelope-row .module{
     flex: 1 1 100%;
     max-width: none;
   }

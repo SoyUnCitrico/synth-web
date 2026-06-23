@@ -17,14 +17,18 @@ export interface UseMidiArgs {
   onNoteOn: (note: number, velocity: number) => void;
   /** Note-off: número de nota MIDI (0..127). */
   onNoteOff: (note: number) => void;
+  // --- Modo slots (Modulor): mapa slot→CC como fuentes de la matriz. Opcional. ---
   /** Control Change de un slot mapeado: índice de slot y valor normalizado (0..1). */
-  onCC: (slot: number, value: number) => void;
+  onCC?: (slot: number, value: number) => void;
   /** Aprendizaje: se recibió un CC mientras un slot estaba en "learn". */
-  onLearned: (slot: number, cc: number) => void;
+  onLearned?: (slot: number, cc: number) => void;
   /** Mapa actual slot→número de CC (null = sin asignar), leído por ref. */
-  midiMapRef: React.RefObject<(number | null)[]>;
+  midiMapRef?: React.RefObject<(number | null)[]>;
   /** Slot en aprendizaje (o null), leído por ref. */
-  learningRef: React.RefObject<number | null>;
+  learningRef?: React.RefObject<number | null>;
+  // --- Modo directo (Makwil): cada CC crudo se reenvía para asignarlo a un control. ---
+  /** Control Change crudo: número de CC (0..127) y valor normalizado (0..1). */
+  onControlChange?: (cc: number, value: number) => void;
 }
 
 export interface UseMidiResult {
@@ -47,6 +51,7 @@ export function useMidi({
   onLearned,
   midiMapRef,
   learningRef,
+  onControlChange,
 }: UseMidiArgs): UseMidiResult {
   const supported = typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function';
   const [enabled, setEnabled] = useState(false);
@@ -56,8 +61,8 @@ export function useMidi({
   const accessRef = useRef<MIDIAccess | null>(null);
 
   // Callbacks por ref para que el handler de mensajes no dependa de su identidad.
-  const cbRef = useRef({ onNoteOn, onNoteOff, onCC, onLearned });
-  cbRef.current = { onNoteOn, onNoteOff, onCC, onLearned };
+  const cbRef = useRef({ onNoteOn, onNoteOff, onCC, onLearned, onControlChange });
+  cbRef.current = { onNoteOn, onNoteOff, onCC, onLearned, onControlChange };
 
   const handleMessage = useCallback(
     (ev: MIDIMessageEvent) => {
@@ -73,14 +78,22 @@ export function useMidi({
       } else if (command === 0x80 || (command === 0x90 && data2 === 0)) {
         cb.onNoteOff(data1);
       } else if (command === 0xb0) {
-        const learning = learningRef.current;
-        if (learning != null) {
-          cb.onLearned(learning, data1);
+        // Modo directo (Makwil): reenvía el CC crudo (la asignación/arm la maneja el consumidor).
+        if (cb.onControlChange) {
+          cb.onControlChange(data1, data2 / 127);
           return;
         }
-        const map = midiMapRef.current;
-        for (let slot = 0; slot < map.length; slot++) {
-          if (map[slot] === data1) cb.onCC(slot, data2 / 127);
+        // Modo slots (Modulor): aprendizaje por slot + ruteo a las fuentes de la matriz.
+        const learning = learningRef?.current;
+        if (learning != null) {
+          cb.onLearned?.(learning, data1);
+          return;
+        }
+        const map = midiMapRef?.current;
+        if (map) {
+          for (let slot = 0; slot < map.length; slot++) {
+            if (map[slot] === data1) cb.onCC?.(slot, data2 / 127);
+          }
         }
       }
     },

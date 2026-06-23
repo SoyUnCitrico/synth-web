@@ -11,10 +11,13 @@ import { FilterEnv } from '../components/modules/FilterEnv/FilterEnv';
 import { DAHD } from '../components/modules/DAHD/DAHD';
 import Reverb from '../components/modules/Reverb/Reverb';
 import Delay from '../components/modules/Delay/Delay';
+import Chorus from '../components/modules/Chorus/Chorus';
+import Chebyshev from '../components/modules/Chebyshev/Chebyshev';
 import PatchMatrix from '../components/modules/PatchMatrix/PatchMatrix';
 import MakwilSequencer from '../components/modules/Sequencer/MakwilSequencer';
 import Midi from '../components/modules/Midi/Midi';
 import { useMidi } from '../audio/midi/useMidi';
+import { useMidiLearnState, MidiLearnContext } from '../audio/midi/MidiLearnContext';
 import Keyboard from '../components/modules/Keyboard/Keyboard';
 import { ALL_KEYS } from '../components/modules/Keyboard/layout';
 import { useMakwilEngine } from '../audio/makwil/useMakwilEngine';
@@ -26,7 +29,6 @@ import {
   MAKWIL_GATE_DESTS,
   MAKWIL_NOTE_SOURCES,
   MAKWIL_NOTE_DESTS,
-  MIDI_CC_SLOTS,
   createPatch,
   createGatePatch,
   createNotePatch,
@@ -37,7 +39,6 @@ import {
   type NotePatch,
   type GateSourceId,
   type NoteSourceId,
-  type PatchSource,
 } from '../audio/makwil/cv';
 import { useMakwilSequencer } from '../audio/makwil/useMakwilSequencer';
 import { useTransport } from '../audio/sequencer/transport';
@@ -59,6 +60,7 @@ import BottomNav from '../components/BottomNav/BottomNav';
 import { usePresets } from '../presets/usePresets';
 import type { MakwilPresetState } from '../audio/makwil/presets';
 import '../App.css';
+import './Makwil.css';
 
 // Mapeo tecla de computadora → nota, derivado del layout del teclado en pantalla (única
 // fuente de verdad).
@@ -145,6 +147,12 @@ const Makwil: React.FC = () => {
   const [vcf2Res, setVcf2Res] = usePersistentState<number>(MAKWIL_KEYS.vcf2Res, 1);
   const [vcf2Source, setVcf2Source] = usePersistentState<Vcf2Source>(MAKWIL_KEYS.vcf2Source, 'none');
 
+  // VCF 3 (insert por voz).
+  const [vcf3Type, setVcf3Type] = usePersistentState<Vcf2Type>(MAKWIL_KEYS.vcf3Type, 'lowpass');
+  const [vcf3Freq, setVcf3Freq] = usePersistentState<number>(MAKWIL_KEYS.vcf3Freq, 2000);
+  const [vcf3Res, setVcf3Res] = usePersistentState<number>(MAKWIL_KEYS.vcf3Res, 1);
+  const [vcf3Source, setVcf3Source] = usePersistentState<Vcf2Source>(MAKWIL_KEYS.vcf3Source, 'none');
+
   // Envolventes de modulación.
   const [ad1Attack, setAd1Attack] = usePersistentState<number>(MAKWIL_KEYS.ad1Attack, 0.05);
   const [ad1Decay, setAd1Decay] = usePersistentState<number>(MAKWIL_KEYS.ad1Decay, 0.3);
@@ -154,6 +162,10 @@ const Makwil: React.FC = () => {
   const [ad2Decay, setAd2Decay] = usePersistentState<number>(MAKWIL_KEYS.ad2Decay, 0.3);
   const [ad2Amount, setAd2Amount] = usePersistentState<number>(MAKWIL_KEYS.ad2Amount, 0);
   const [ad2Curve, setAd2Curve] = usePersistentState<EnvCurve>(MAKWIL_KEYS.ad2Curve, 'linear');
+  const [ad3Attack, setAd3Attack] = usePersistentState<number>(MAKWIL_KEYS.ad3Attack, 0.05);
+  const [ad3Decay, setAd3Decay] = usePersistentState<number>(MAKWIL_KEYS.ad3Decay, 0.3);
+  const [ad3Amount, setAd3Amount] = usePersistentState<number>(MAKWIL_KEYS.ad3Amount, 0);
+  const [ad3Curve, setAd3Curve] = usePersistentState<EnvCurve>(MAKWIL_KEYS.ad3Curve, 'linear');
   const [dahdDelay, setDahdDelay] = usePersistentState<number>(MAKWIL_KEYS.dahdDelay, 0);
   const [dahdAttack, setDahdAttack] = usePersistentState<number>(MAKWIL_KEYS.dahdAttack, 0.05);
   const [dahdHold, setDahdHold] = usePersistentState<number>(MAKWIL_KEYS.dahdHold, 0.1);
@@ -178,6 +190,9 @@ const Makwil: React.FC = () => {
   const [lfo2Type, setLfo2Type] = usePersistentState<Tone.ToneOscillatorType>(MAKWIL_KEYS.lfo2Type, 'triangle');
   const [lfo2Rate, setLfo2Rate] = usePersistentState<number>(MAKWIL_KEYS.lfo2Rate, 2);
   const [lfo2Depth, setLfo2Depth] = usePersistentState<number>(MAKWIL_KEYS.lfo2Depth, 0.3);
+  const [lfo3Type, setLfo3Type] = usePersistentState<Tone.ToneOscillatorType>(MAKWIL_KEYS.lfo3Type, 'sawtooth');
+  const [lfo3Rate, setLfo3Rate] = usePersistentState<number>(MAKWIL_KEYS.lfo3Rate, 1);
+  const [lfo3Depth, setLfo3Depth] = usePersistentState<number>(MAKWIL_KEYS.lfo3Depth, 0.3);
 
   // Matriz de modulación (CV). Por defecto el ADSR modula el VCA mono.
   const [modPatch, setModPatch] = usePersistentState<ModPatch>(MAKWIL_KEYS.modPatch, () =>
@@ -205,27 +220,31 @@ const Makwil: React.FC = () => {
     ]),
   );
 
-  // Mapeo de perillas/CC MIDI (4 primeras pre-cableadas a CC 20-23).
-  const [midiMap, setMidiMap] = usePersistentState<(number | null)[]>(MAKWIL_KEYS.midiMap, () => {
-    const m: (number | null)[] = Array(MIDI_CC_SLOTS).fill(null);
-    [20, 21, 22, 23].forEach((cc, i) => (m[i] = cc));
-    return m;
-  });
-  const [learningSlot, setLearningSlot] = useState<number | null>(null);
+  // Estado del MIDI-learn directo (CC → perilla/slider). Reemplaza al mapeo por slots.
+  const midiLearn = useMidiLearnState(MAKWIL_KEYS.midiAssignments);
 
   // FX de envío.
   const [reverbDecay, setReverbDecay] = usePersistentState<number>(MAKWIL_KEYS.reverbDecay, 2);
   const [reverbWet, setReverbWet] = usePersistentState<number>(MAKWIL_KEYS.reverbWet, 1);
   const [delayTime, setDelayTime] = usePersistentState<number>(MAKWIL_KEYS.delayTime, 0.25);
   const [delayFeedback, setDelayFeedback] = usePersistentState<number>(MAKWIL_KEYS.delayFeedback, 0.3);
+  const [chorusRate, setChorusRate] = usePersistentState<number>(MAKWIL_KEYS.chorusRate, 1.5);
+  const [chorusDepth, setChorusDepth] = usePersistentState<number>(MAKWIL_KEYS.chorusDepth, 0.7);
+  const [chorusWet, setChorusWet] = usePersistentState<number>(MAKWIL_KEYS.chorusWet, 1);
+  const [chebyOrder, setChebyOrder] = usePersistentState<number>(MAKWIL_KEYS.chebyOrder, 8);
+  const [chebyWet, setChebyWet] = usePersistentState<number>(MAKWIL_KEYS.chebyWet, 1);
 
   // Mixer: solo, pan y envíos por canal (índice 0..4).
   const [channelSolo, setChannelSolo] = usePersistentState<boolean[]>(MAKWIL_KEYS.channelSolo, () => [false, false, false, false, false]);
   const [channelPan, setChannelPan] = usePersistentState<number[]>(MAKWIL_KEYS.channelPan, () => [0, 0, 0, 0, 0]);
   const [reverbSends, setReverbSends] = usePersistentState<number[]>(MAKWIL_KEYS.reverbSends, () => [0, 0, 0, 0, 0]);
   const [delaySends, setDelaySends] = usePersistentState<number[]>(MAKWIL_KEYS.delaySends, () => [0, 0, 0, 0, 0]);
+  const [chorusSends, setChorusSends] = usePersistentState<number[]>(MAKWIL_KEYS.chorusSends, () => [0, 0, 0, 0, 0]);
+  const [chebySends, setChebySends] = usePersistentState<number[]>(MAKWIL_KEYS.chebySends, () => [0, 0, 0, 0, 0]);
   const [reverbSendEnabled, setReverbSendEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.reverbSendEnabled, true);
   const [delaySendEnabled, setDelaySendEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.delaySendEnabled, true);
+  const [chorusSendEnabled, setChorusSendEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.chorusSendEnabled, true);
+  const [chebySendEnabled, setChebySendEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.chebySendEnabled, true);
 
   // Handlers por índice del mixer.
   const onToggleChannel = useCallback((i: number) => setChannelEnabled((p) => p.map((v, idx) => (idx === i ? !v : v))), [setChannelEnabled]);
@@ -234,8 +253,12 @@ const Makwil: React.FC = () => {
   const onPan = useCallback((i: number, val: number) => setChannelPan((p) => p.map((v, idx) => (idx === i ? val : v))), [setChannelPan]);
   const onReverbSend = useCallback((i: number, val: number) => setReverbSends((p) => p.map((v, idx) => (idx === i ? val : v))), [setReverbSends]);
   const onDelaySend = useCallback((i: number, val: number) => setDelaySends((p) => p.map((v, idx) => (idx === i ? val : v))), [setDelaySends]);
+  const onChorusSend = useCallback((i: number, val: number) => setChorusSends((p) => p.map((v, idx) => (idx === i ? val : v))), [setChorusSends]);
+  const onChebySend = useCallback((i: number, val: number) => setChebySends((p) => p.map((v, idx) => (idx === i ? val : v))), [setChebySends]);
   const onToggleReverbSend = useCallback(() => setReverbSendEnabled((v) => !v), [setReverbSendEnabled]);
   const onToggleDelaySend = useCallback(() => setDelaySendEnabled((v) => !v), [setDelaySendEnabled]);
+  const onToggleChorusSend = useCallback(() => setChorusSendEnabled((v) => !v), [setChorusSendEnabled]);
+  const onToggleChebySend = useCallback(() => setChebySendEnabled((v) => !v), [setChebySendEnabled]);
 
   // Transporte compartido con el header.
   const { running: seqRunning, setRunning: setSeqRunning, bpm: seqBpm, setBpm: setSeqBpm, registerReset, registerResetAll } = useTransport();
@@ -263,18 +286,23 @@ const Makwil: React.FC = () => {
     noiseType, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
     mixOsc1, mixOsc2, mixOsc3, mixOsc4, mixNoise,
     channelEnabled, channelSolo, channelPan,
-    reverbSends, delaySends, reverbSendEnabled, delaySendEnabled, fxGated,
+    reverbSends, delaySends, chorusSends, chebySends,
+    reverbSendEnabled, delaySendEnabled, chorusSendEnabled, chebySendEnabled, fxGated,
     filterType, filterFreq, filterRes,
     vcf2Type, vcf2Freq, vcf2Res, vcf2Source,
+    vcf3Type, vcf3Freq, vcf3Res, vcf3Source,
     ad1Attack, ad1Decay, ad1Depth: ad1Amount, ad1Curve,
     ad2Attack, ad2Decay, ad2Depth: ad2Amount, ad2Curve,
+    ad3Attack, ad3Decay, ad3Depth: ad3Amount, ad3Curve,
     dahdDelay, dahdAttack, dahdHold, dahdDecay, dahdDepth: dahdAmount, dahdCurve,
     attack, decay, sustain, release, adsrDepth: adsrAmount, adsrCurve,
     volume,
     lfoType, lfoRate, lfoDepth,
     lfo2Type, lfo2Rate, lfo2Depth,
+    lfo3Type, lfo3Rate, lfo3Depth,
     modPatch,
     reverbDecay, reverbWet, delayTime, delayFeedback,
+    chorusRate, chorusDepth, chorusWet, chebyOrder, chebyWet,
   });
 
   // Refs vivos leídos dentro de los callbacks sin recrearlos.
@@ -305,7 +333,7 @@ const Makwil: React.FC = () => {
         if (dest.id === 'quant' || dest.id === 'osc1') continue; // 'osc1' es poli (aparte)
         if (!notePatchRef.current[noteKey(source, dest.id)]) continue;
         if (dest.id === 'osc2' || dest.id === 'osc3' || dest.id === 'osc4') engine.setOscNote(dest.id, outNote, time);
-        else engine.setFilterKeyTrack(dest.id as 'filter1' | 'vcf2' | 'noiseFilter', outNote, time);
+        else engine.setFilterKeyTrack(dest.id as 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', outNote, time);
       }
     },
     [engine, applyQuant],
@@ -389,16 +417,21 @@ const Makwil: React.FC = () => {
       noiseType, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
       mixOsc1, mixOsc2, mixOsc3, mixOsc4, mixNoise,
       channelSolo, channelPan, reverbSends, delaySends, reverbSendEnabled, delaySendEnabled,
+      chorusSends, chebySends, chorusSendEnabled, chebySendEnabled,
       filterType, filterFreq, filterRes,
       vcf2Type, vcf2Freq, vcf2Res, vcf2Source,
+      vcf3Type, vcf3Freq, vcf3Res, vcf3Source,
       ad1Attack, ad1Decay, ad1Amount, ad1Curve,
       ad2Attack, ad2Decay, ad2Amount, ad2Curve,
+      ad3Attack, ad3Decay, ad3Amount, ad3Curve,
       dahdDelay, dahdAttack, dahdHold, dahdDecay, dahdAmount, dahdCurve,
       attack, decay, sustain, release, adsrAmount, adsrCurve,
       volume,
       lfoType, lfoRate, lfoDepth,
       lfo2Type, lfo2Rate, lfo2Depth,
+      lfo3Type, lfo3Rate, lfo3Depth,
       reverbDecay, reverbWet, delayTime, delayFeedback,
+      chorusRate, chorusDepth, chorusWet, chebyOrder, chebyWet,
       modPatch, gatePatch, notePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps, cv4Steps,
     }),
@@ -411,16 +444,21 @@ const Makwil: React.FC = () => {
       noiseType, noiseFilterEnabled, noiseFilterFreq, noiseFilterRes,
       mixOsc1, mixOsc2, mixOsc3, mixOsc4, mixNoise,
       channelSolo, channelPan, reverbSends, delaySends, reverbSendEnabled, delaySendEnabled,
+      chorusSends, chebySends, chorusSendEnabled, chebySendEnabled,
       filterType, filterFreq, filterRes,
       vcf2Type, vcf2Freq, vcf2Res, vcf2Source,
+      vcf3Type, vcf3Freq, vcf3Res, vcf3Source,
       ad1Attack, ad1Decay, ad1Amount, ad1Curve,
       ad2Attack, ad2Decay, ad2Amount, ad2Curve,
+      ad3Attack, ad3Decay, ad3Amount, ad3Curve,
       dahdDelay, dahdAttack, dahdHold, dahdDecay, dahdAmount, dahdCurve,
       attack, decay, sustain, release, adsrAmount, adsrCurve,
       volume,
       lfoType, lfoRate, lfoDepth,
       lfo2Type, lfo2Rate, lfo2Depth,
+      lfo3Type, lfo3Rate, lfo3Depth,
       reverbDecay, reverbWet, delayTime, delayFeedback,
+      chorusRate, chorusDepth, chorusWet, chebyOrder, chebyWet,
       modPatch, gatePatch, notePatch,
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps, cv4Steps,
     ],
@@ -462,8 +500,12 @@ const Makwil: React.FC = () => {
       if (s.channelPan) setChannelPan(s.channelPan);
       if (s.reverbSends) setReverbSends(s.reverbSends);
       if (s.delaySends) setDelaySends(s.delaySends);
+      if (s.chorusSends) setChorusSends(s.chorusSends);
+      if (s.chebySends) setChebySends(s.chebySends);
       if (s.reverbSendEnabled !== undefined) setReverbSendEnabled(s.reverbSendEnabled);
       if (s.delaySendEnabled !== undefined) setDelaySendEnabled(s.delaySendEnabled);
+      if (s.chorusSendEnabled !== undefined) setChorusSendEnabled(s.chorusSendEnabled);
+      if (s.chebySendEnabled !== undefined) setChebySendEnabled(s.chebySendEnabled);
       if (s.filterType !== undefined) setFilterType(s.filterType);
       if (s.filterFreq !== undefined) setFilterFreq(s.filterFreq);
       if (s.filterRes !== undefined) setFilterRes(s.filterRes);
@@ -471,6 +513,10 @@ const Makwil: React.FC = () => {
       if (s.vcf2Freq !== undefined) setVcf2Freq(s.vcf2Freq);
       if (s.vcf2Res !== undefined) setVcf2Res(s.vcf2Res);
       if (s.vcf2Source !== undefined) setVcf2Source(s.vcf2Source);
+      if (s.vcf3Type !== undefined) setVcf3Type(s.vcf3Type);
+      if (s.vcf3Freq !== undefined) setVcf3Freq(s.vcf3Freq);
+      if (s.vcf3Res !== undefined) setVcf3Res(s.vcf3Res);
+      if (s.vcf3Source !== undefined) setVcf3Source(s.vcf3Source);
       if (s.ad1Attack !== undefined) setAd1Attack(s.ad1Attack);
       if (s.ad1Decay !== undefined) setAd1Decay(s.ad1Decay);
       if (s.ad1Amount !== undefined) setAd1Amount(s.ad1Amount);
@@ -479,6 +525,10 @@ const Makwil: React.FC = () => {
       if (s.ad2Decay !== undefined) setAd2Decay(s.ad2Decay);
       if (s.ad2Amount !== undefined) setAd2Amount(s.ad2Amount);
       if (s.ad2Curve !== undefined) setAd2Curve(s.ad2Curve);
+      if (s.ad3Attack !== undefined) setAd3Attack(s.ad3Attack);
+      if (s.ad3Decay !== undefined) setAd3Decay(s.ad3Decay);
+      if (s.ad3Amount !== undefined) setAd3Amount(s.ad3Amount);
+      if (s.ad3Curve !== undefined) setAd3Curve(s.ad3Curve);
       if (s.dahdDelay !== undefined) setDahdDelay(s.dahdDelay);
       if (s.dahdAttack !== undefined) setDahdAttack(s.dahdAttack);
       if (s.dahdHold !== undefined) setDahdHold(s.dahdHold);
@@ -498,10 +548,18 @@ const Makwil: React.FC = () => {
       if (s.lfo2Type !== undefined) setLfo2Type(s.lfo2Type);
       if (s.lfo2Rate !== undefined) setLfo2Rate(s.lfo2Rate);
       if (s.lfo2Depth !== undefined) setLfo2Depth(s.lfo2Depth);
+      if (s.lfo3Type !== undefined) setLfo3Type(s.lfo3Type);
+      if (s.lfo3Rate !== undefined) setLfo3Rate(s.lfo3Rate);
+      if (s.lfo3Depth !== undefined) setLfo3Depth(s.lfo3Depth);
       if (s.reverbDecay !== undefined) setReverbDecay(s.reverbDecay);
       if (s.reverbWet !== undefined) setReverbWet(s.reverbWet);
       if (s.delayTime !== undefined) setDelayTime(s.delayTime);
       if (s.delayFeedback !== undefined) setDelayFeedback(s.delayFeedback);
+      if (s.chorusRate !== undefined) setChorusRate(s.chorusRate);
+      if (s.chorusDepth !== undefined) setChorusDepth(s.chorusDepth);
+      if (s.chorusWet !== undefined) setChorusWet(s.chorusWet);
+      if (s.chebyOrder !== undefined) setChebyOrder(s.chebyOrder);
+      if (s.chebyWet !== undefined) setChebyWet(s.chebyWet);
       if (s.modPatch) setModPatch(s.modPatch);
       if (s.gatePatch) setGatePatch(s.gatePatch);
       if (s.notePatch) setNotePatch(s.notePatch);
@@ -555,13 +613,16 @@ const Makwil: React.FC = () => {
       ]),
       quantScale: 'major', quantRoot: 0,
       attack: 0.01, decay: 0.5, sustain: 0.5, release: 0.2, adsrAmount: 1,
-      ad1Amount: 0, ad2Amount: 0, dahdAmount: 0,
-      adsrCurve: 'linear', ad1Curve: 'linear', ad2Curve: 'linear', dahdCurve: 'linear',
-      lfoDepth: 0, lfoRate: 1, lfo2Depth: 0, lfo2Rate: 1,
+      ad1Amount: 0, ad2Amount: 0, ad3Amount: 0, dahdAmount: 0,
+      adsrCurve: 'linear', ad1Curve: 'linear', ad2Curve: 'linear', ad3Curve: 'linear', dahdCurve: 'linear',
+      lfoDepth: 0, lfoRate: 1, lfo2Depth: 0, lfo2Rate: 1, lfo3Depth: 0, lfo3Rate: 1,
       filterFreq: 20000, filterRes: 1,
       vcf2Source: 'none', vcf2Res: 1, vcf2Freq: 2000,
+      vcf3Source: 'none', vcf3Res: 1, vcf3Freq: 2000,
       reverbDecay: 1, reverbWet: 0, delayFeedback: 0,
+      chorusWet: 1, chebyWet: 1,
       reverbSends: [0, 0, 0, 0, 0], delaySends: [0, 0, 0, 0, 0],
+      chorusSends: [0, 0, 0, 0, 0], chebySends: [0, 0, 0, 0, 0],
       seqBpm: 128,
       seqConfigs: makeSeqConfigs(),
       pitchSteps: makePitchSteps(),
@@ -645,54 +706,15 @@ const Makwil: React.FC = () => {
   );
 
   // --- MIDI ---
-  const midiMapRef = useRef(midiMap);
-  midiMapRef.current = midiMap;
-  const learningRef = useRef(learningSlot);
-  learningRef.current = learningSlot;
-
+  // Las notas siguen disparando voces; los CC se enrutan al MIDI-learn directo (handleCC).
   const midi = useMidi({
-    midiMapRef,
-    learningRef,
     onNoteOn: useCallback(
       (note: number, velocity: number) => noteOn(`midi:${note}`, Tone.Frequency(note, 'midi').toNote(), 'midi', velocity),
       [noteOn],
     ),
     onNoteOff: useCallback((note: number) => noteOff(`midi:${note}`), [noteOff]),
-    onCC: useCallback((slot: number, value: number) => engine.setCCValue(slot, value), [engine]),
-    onLearned: useCallback((slot: number, cc: number) => {
-      setMidiMap((prev) => {
-        const next = [...prev];
-        next[slot] = cc;
-        return next;
-      });
-      setLearningSlot(null);
-    }, [setMidiMap]),
+    onControlChange: midiLearn.handleCC,
   });
-
-  const onMidiLearn = useCallback((slot: number) => setLearningSlot((s) => (s === slot ? null : slot)), []);
-  const onMidiClear = useCallback(
-    (slot: number) => {
-      setMidiMap((prev) => {
-        const next = [...prev];
-        next[slot] = null;
-        return next;
-      });
-      setLearningSlot((s) => (s === slot ? null : s));
-    },
-    [setMidiMap],
-  );
-
-  // Filas de la matriz CV: oculta los slots CC MIDI sin asignar y reetiqueta los asignados.
-  const modSources = useMemo<PatchSource[]>(
-    () =>
-      MAKWIL_MOD_SOURCES.flatMap((src) => {
-        const m = /^midiCC(\d+)$/.exec(src.id);
-        if (!m) return [src];
-        const cc = midiMap[parseInt(m[1], 10) - 1];
-        return cc == null ? [] : [{ ...src, label: `CC ${cc}`, short: `${cc}` }];
-      }),
-    [midiMap],
-  );
 
   const octaveDown = useCallback(() => setOctave((o) => Math.max(1, o - 1)), []);
   const octaveUp = useCallback(() => setOctave((o) => Math.min(7, o + 1)), []);
@@ -718,8 +740,17 @@ const Makwil: React.FC = () => {
     };
   }, [noteOn, noteOff, octaveDown, octaveUp]);
 
+  // Tema "códice mexica": marca el body mientras Makwil está montado para que el fondo de
+  // pergamino y el chrome compartido (header, nav, etc.) se re-tematicen SOLO en esta página.
+  // El cleanup garantiza que Modulor quede intacto al navegar de vuelta.
+  useEffect(() => {
+    document.body.classList.add('makwil-codex');
+    return () => document.body.classList.remove('makwil-codex');
+  }, []);
+
   return (
-    <div className="synth-container">
+    <MidiLearnContext.Provider value={midiLearn}>
+    <div className="synth-container makwil-codex">
       <h1 className={'synthTitle'}>MAKWIL</h1>
 
       <Presets
@@ -731,109 +762,130 @@ const Makwil: React.FC = () => {
       />
 
       <div className="synth-modules" ref={oscRef}>
-        <VCO
-          oscType={osc1Type}
-          setOscType={setOsc1Type}
-          frequency={osc1Freq}
-          setFrequency={setOsc1Freq}
-          fine={osc1Fine}
-          setFine={setOsc1Fine}
-          isSecondary={false}
-          enabled={channelEnabled[0]}
-          setEnabled={(v) => setChannelEnabledAt(0, v)}
-          label="VCO 1 (Poli)"
-          index={1}
-          fat
-          spread={osc1Spread}
-          setSpread={setOsc1Spread}
-          count={osc1Count}
-          setCount={setOsc1Count}
-          oscRef={oscRef}
-        />
+        <div className='vco-row big'>
+          <VCO
+            oscType={osc1Type}
+            setOscType={setOsc1Type}
+            frequency={osc1Freq}
+            setFrequency={setOsc1Freq}
+            fine={osc1Fine}
+            setFine={setOsc1Fine}
+            isSecondary={false}
+            enabled={channelEnabled[0]}
+            setEnabled={(v) => setChannelEnabledAt(0, v)}
+            label="VCO 1 (Poli)"
+            index={1}
+            fat
+            spread={osc1Spread}
+            setSpread={setOsc1Spread}
+            count={osc1Count}
+            setCount={setOsc1Count}
+            oscRef={oscRef}
+          />
 
-        <VCO
-          oscType={osc2Type}
-          setOscType={setOsc2Type}
-          frequency={osc2Freq}
-          setFrequency={setOsc2Freq}
-          fine={osc2Fine}
-          setFine={setOsc2Fine}
-          isSecondary={true}
-          enabled={channelEnabled[1]}
-          setEnabled={(v) => setChannelEnabledAt(1, v)}
-          label="VCO 2 (FM)"
-          index={2}
-          fm
-          harmonicity={fmHarmonicity}
-          setHarmonicity={setFmHarmonicity}
-          modIndex={fmModIndex}
-          setModIndex={setFmModIndex}
-        />
+          <VCO
+            oscType={osc2Type}
+            setOscType={setOsc2Type}
+            frequency={osc2Freq}
+            setFrequency={setOsc2Freq}
+            fine={osc2Fine}
+            setFine={setOsc2Fine}
+            isSecondary={true}
+            enabled={channelEnabled[1]}
+            setEnabled={(v) => setChannelEnabledAt(1, v)}
+            label="VCO 2 (FM)"
+            index={2}
+            fm
+            harmonicity={fmHarmonicity}
+            setHarmonicity={setFmHarmonicity}
+            modIndex={fmModIndex}
+            setModIndex={setFmModIndex}
+          />
+        </div>
+        <div className='vco-row'>
+          <VCO
+            oscType={osc3Type}
+            setOscType={setOsc3Type}
+            frequency={osc3Freq}
+            setFrequency={setOsc3Freq}
+            fine={osc3Fine}
+            setFine={setOsc3Fine}
+            isSecondary={true}
+            enabled={channelEnabled[2]}
+            setEnabled={(v) => setChannelEnabledAt(2, v)}
+            label="VCO 3"
+            index={3}
+            pwm={pwm3}
+            setPwm={setPwm3}
+          />
 
-        <VCO
-          oscType={osc3Type}
-          setOscType={setOsc3Type}
-          frequency={osc3Freq}
-          setFrequency={setOsc3Freq}
-          fine={osc3Fine}
-          setFine={setOsc3Fine}
-          isSecondary={true}
-          enabled={channelEnabled[2]}
-          setEnabled={(v) => setChannelEnabledAt(2, v)}
-          label="VCO 3"
-          index={3}
-          pwm={pwm3}
-          setPwm={setPwm3}
-        />
+          <VCO
+            oscType={osc4Type}
+            setOscType={setOsc4Type}
+            frequency={osc4Freq}
+            setFrequency={setOsc4Freq}
+            fine={osc4Fine}
+            setFine={setOsc4Fine}
+            isSecondary={true}
+            enabled={channelEnabled[3]}
+            setEnabled={(v) => setChannelEnabledAt(3, v)}
+            label="VCO 4"
+            index={4}
+            pwm={pwm4}
+            setPwm={setPwm4}
+          />
+          <Noise
+            noiseType={noiseType}
+            setNoiseType={setNoiseType}
+            enabled={channelEnabled[4]}
+            setEnabled={(v) => setChannelEnabledAt(4, v)}
+            filterEnabled={noiseFilterEnabled}
+            setFilterEnabled={setNoiseFilterEnabled}
+            filterFreq={noiseFilterFreq}
+            setFilterFreq={setNoiseFilterFreq}
+            filterRes={noiseFilterRes}
+            setFilterRes={setNoiseFilterRes}
+          />
+        </div>
+        
 
-        <VCO
-          oscType={osc4Type}
-          setOscType={setOsc4Type}
-          frequency={osc4Freq}
-          setFrequency={setOsc4Freq}
-          fine={osc4Fine}
-          setFine={setOsc4Fine}
-          isSecondary={true}
-          enabled={channelEnabled[3]}
-          setEnabled={(v) => setChannelEnabledAt(3, v)}
-          label="VCO 4"
-          index={4}
-          pwm={pwm4}
-          setPwm={setPwm4}
-        />
+        <div className='filter-row'>
+          <VCF
+            filterType={filterType}
+            setFilterType={setFilterType}
+            frequency={filterFreq}
+            setFrequency={setFilterFreq}
+            resonance={filterRes}
+            setResonance={setFilterRes}
+          />
 
-        <VCF
-          filterType={filterType}
-          setFilterType={setFilterType}
-          frequency={filterFreq}
-          setFrequency={setFilterFreq}
-          resonance={filterRes}
-          setResonance={setFilterRes}
-        />
+          <VCF2
+            type={vcf2Type}
+            setType={setVcf2Type}
+            freq={vcf2Freq}
+            setFreq={setVcf2Freq}
+            res={vcf2Res}
+            setRes={setVcf2Res}
+            source={vcf2Source}
+            setSource={setVcf2Source}
+          />
 
-        <VCF2
-          type={vcf2Type}
-          setType={setVcf2Type}
-          freq={vcf2Freq}
-          setFreq={setVcf2Freq}
-          res={vcf2Res}
-          setRes={setVcf2Res}
-          source={vcf2Source}
-          setSource={setVcf2Source}
-        />
+          <VCF2
+            title="VCF 3"
+            idPrefix="vcf3"
+            type={vcf3Type}
+            setType={setVcf3Type}
+            freq={vcf3Freq}
+            setFreq={setVcf3Freq}
+            res={vcf3Res}
+            setRes={setVcf3Res}
+            source={vcf3Source}
+            setSource={setVcf3Source}
+          />
 
-        <Noise
-          noiseType={noiseType}
-          setNoiseType={setNoiseType}
-          enabled={channelEnabled[4]}
-          setEnabled={(v) => setChannelEnabledAt(4, v)}
-          filterEnabled={noiseFilterEnabled}
-          setFilterEnabled={setNoiseFilterEnabled}
-          filterFreq={noiseFilterFreq}
-          setFilterFreq={setNoiseFilterFreq}
-          filterRes={noiseFilterRes}
-          setFilterRes={setNoiseFilterRes}
-        />
+        </div>
+        
+
 
         <VCA
           volume={volume}
@@ -862,6 +914,14 @@ const Makwil: React.FC = () => {
           onDelaySend={onDelaySend}
           delaySendEnabled={delaySendEnabled}
           onToggleDelaySend={onToggleDelaySend}
+          chorusSends={chorusSends}
+          onChorusSend={onChorusSend}
+          chorusSendEnabled={chorusSendEnabled}
+          onToggleChorusSend={onToggleChorusSend}
+          chebySends={chebySends}
+          onChebySend={onChebySend}
+          chebySendEnabled={chebySendEnabled}
+          onToggleChebySend={onToggleChebySend}
           channelLabels={['VCO 1', 'VCO 2', 'VCO 3', 'VCO 4', 'Ruido']}
         />
 
@@ -880,6 +940,22 @@ const Makwil: React.FC = () => {
             curve={adsrCurve}
             setCurve={setAdsrCurve}
           />
+          <DAHD
+            delay={dahdDelay}
+            setDelay={setDahdDelay}
+            attack={dahdAttack}
+            setAttack={setDahdAttack}
+            hold={dahdHold}
+            setHold={setDahdHold}
+            decay={dahdDecay}
+            setDecay={setDahdDecay}
+            amount={dahdAmount}
+            setAmount={setDahdAmount}
+            curve={dahdCurve}
+            setCurve={setDahdCurve}
+          />
+        </div>
+        <div className="envelope-column">
           <FilterEnv
             label="AD 1"
             id="ad1"
@@ -904,23 +980,21 @@ const Makwil: React.FC = () => {
             curve={ad2Curve}
             setCurve={setAd2Curve}
           />
-          <DAHD
-            delay={dahdDelay}
-            setDelay={setDahdDelay}
-            attack={dahdAttack}
-            setAttack={setDahdAttack}
-            hold={dahdHold}
-            setHold={setDahdHold}
-            decay={dahdDecay}
-            setDecay={setDahdDecay}
-            amount={dahdAmount}
-            setAmount={setDahdAmount}
-            curve={dahdCurve}
-            setCurve={setDahdCurve}
+          <FilterEnv
+            label="AD 3"
+            id="ad3"
+            attack={ad3Attack}
+            setAttack={setAd3Attack}
+            decay={ad3Decay}
+            setDecay={setAd3Decay}
+            amount={ad3Amount}
+            setAmount={setAd3Amount}
+            curve={ad3Curve}
+            setCurve={setAd3Curve}
           />
         </div>
 
-        <div className="lfo-row">
+        <div className="lfo-column">
           <LFO
             label="LFO 1"
             id="lfo1"
@@ -941,41 +1015,30 @@ const Makwil: React.FC = () => {
             depth={lfo2Depth}
             setDepth={setLfo2Depth}
           />
-          <Reverb decay={reverbDecay} setDecay={setReverbDecay} wet={reverbWet} setWet={setReverbWet} />
-          <Delay time={delayTime} setTime={setDelayTime} feedback={delayFeedback} setFeedback={setDelayFeedback} />
+          <LFO
+            label="LFO 3"
+            id="lfo3"
+            lfoType={lfo3Type}
+            setLfoType={setLfo3Type}
+            rate={lfo3Rate}
+            setRate={setLfo3Rate}
+            depth={lfo3Depth}
+            setDepth={setLfo3Depth}
+          />
         </div>
 
-        <div className="matrix-row">
-          <PatchMatrix
-            patch={modPatch}
-            setPatch={setModPatch}
-            gatePatch={gatePatch}
-            setGatePatch={setGatePatch}
-            notePatch={notePatch}
-            setNotePatch={setNotePatch}
-            modSources={modSources}
-            modDests={MAKWIL_MOD_DESTS}
-            gateSources={MAKWIL_GATE_SOURCES}
-            gateDests={MAKWIL_GATE_DESTS}
-            noteSources={MAKWIL_NOTE_SOURCES}
-            noteDests={MAKWIL_NOTE_DESTS}
+        <div className="fx-column">
+          <Reverb decay={reverbDecay} setDecay={setReverbDecay} wet={reverbWet} setWet={setReverbWet} />
+          <Delay time={delayTime} setTime={setDelayTime} feedback={delayFeedback} setFeedback={setDelayFeedback} />
+          <Chorus
+            rate={chorusRate}
+            setRate={setChorusRate}
+            depth={chorusDepth}
+            setDepth={setChorusDepth}
+            wet={chorusWet}
+            setWet={setChorusWet}
           />
-
-          <Midi
-            supported={midi.supported}
-            enabled={midi.enabled}
-            deviceNames={midi.deviceNames}
-            activity={midi.activity}
-            midiMap={midiMap}
-            learningSlot={learningSlot}
-            onEnable={midi.enable}
-            onLearn={onMidiLearn}
-            onClear={onMidiClear}
-            quantScale={quantScale}
-            setQuantScale={setQuantScale}
-            quantRoot={quantRoot}
-            setQuantRoot={setQuantRoot}
-          />
+          <Chebyshev order={chebyOrder} setOrder={setChebyOrder} wet={chebyWet} setWet={setChebyWet} />
         </div>
 
         <MakwilSequencer
@@ -998,6 +1061,42 @@ const Makwil: React.FC = () => {
           setCv4Steps={setCv4Steps}
           currentSteps={currentSteps}
         />
+        
+        <div className="matrix-row">
+          <PatchMatrix
+            patch={modPatch}
+            setPatch={setModPatch}
+            gatePatch={gatePatch}
+            setGatePatch={setGatePatch}
+            notePatch={notePatch}
+            setNotePatch={setNotePatch}
+            modSources={MAKWIL_MOD_SOURCES}
+            modDests={MAKWIL_MOD_DESTS}
+            gateSources={MAKWIL_GATE_SOURCES}
+            gateDests={MAKWIL_GATE_DESTS}
+            noteSources={MAKWIL_NOTE_SOURCES}
+            noteDests={MAKWIL_NOTE_DESTS}
+          />
+
+          <Midi
+            supported={midi.supported}
+            enabled={midi.enabled}
+            deviceNames={midi.deviceNames}
+            activity={midi.activity}
+            onEnable={midi.enable}
+            learnMode={midiLearn.learnMode}
+            onToggleLearnMode={midiLearn.toggleLearnMode}
+            assignments={midiLearn.assignments}
+            armed={midiLearn.armedId != null}
+            onClearAssignment={midiLearn.clearAssignment}
+            quantScale={quantScale}
+            setQuantScale={setQuantScale}
+            quantRoot={quantRoot}
+            setQuantRoot={setQuantRoot}
+          />
+        </div>
+
+
       </div>
 
       <Keyboard
@@ -1016,6 +1115,7 @@ const Makwil: React.FC = () => {
         voiceLabels={['V1', 'V2', 'V3', 'V4', 'N']}
       />
     </div>
+    </MidiLearnContext.Provider>
   );
 };
 

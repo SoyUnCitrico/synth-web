@@ -1,0 +1,141 @@
+/* Landing de About. Reutiliza los tokens de :root y la paleta del códice (heredada de
+   body.makwil-codex). Layout de lectura centrado sobre el fondo de papel + flores. */
+
+.about-page {
+  position: relative;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 6rem;
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+
+/* ── Hero ── */
+.about-hero {
+  text-align: center;
+  padding: 2.5rem 0 1.5rem;
+}
+.about-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  letter-spacing: 0.18em;
+  color: #3a2410;
+  text-shadow:
+    0 1px 0 rgba(255, 240, 210, 0.5),
+    0 0 14px rgba(1, 109, 205, 0.35),
+    0 0 26px rgba(254, 0, 0, 0.22);
+}
+.about-sub {
+  margin-top: 0.6rem;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+/* ── Secciones de texto ── */
+.about-section {
+  margin: 1.8rem 0;
+  padding: 1.3rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(23, 18, 13, 0.06);
+  backdrop-filter: blur(1px);
+}
+.about-section h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--magenta);
+  margin-bottom: 0.7rem;
+}
+.about-section p {
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+.about-section code {
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(1, 109, 205, 0.12);
+  color: var(--cyan-deep);
+}
+
+/* ── Grid de módulos ── */
+.about-modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 0.4rem;
+}
+.about-module-card {
+  --card-accent: var(--cyan);
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--card-accent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.about-module-card h3 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+  margin-bottom: 0.4rem;
+}
+.about-module-card p {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  margin-bottom: 0.6rem;
+}
+.about-module-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  padding: 0;
+}
+.about-module-list li {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--card-accent);
+  color: var(--ink);
+}
+
+/* ── Pie ── */
+.about-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+}
+.about-link {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+.about-link:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 12px rgba(255, 138, 30, 0.35);
+}
+
+/* ── Responsivo (mismos breakpoints que App.css) ── */
+@media (max-width: 768px) {
+  .about-modules {
+    grid-template-columns: 1fr;
+  }
+}

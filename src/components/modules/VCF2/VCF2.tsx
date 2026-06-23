@@ -13,6 +13,10 @@ interface VCF2Props {
   setRes: (r: number) => void;
   source: Vcf2Source;
   setSource: (s: Vcf2Source) => void;
+  /** Título del módulo (por defecto "VCF 2"). Permite reusar el componente como VCF 3. */
+  title?: string;
+  /** Prefijo de ids estables (por defecto "vcf2"); usado para inputs y MIDI-learn. */
+  idPrefix?: string;
 }
 
 const TYPES: { value: Vcf2Type; label: string }[] = [
@@ -40,17 +44,19 @@ export const VCF2: React.FC<VCF2Props> = ({
   setRes,
   source,
   setSource,
+  title = 'VCF 2',
+  idPrefix = 'vcf2',
 }) => {
   return (
     <div className="module vcf2-module" data-filter-type={type}>
       <div className="module-header">
-        <h2>VCF 2</h2>
+        <h2>{title}</h2>
       </div>
       <div className="module-controls">
         <div className="control-group">
-          <label htmlFor="vcf2-type">Tipo (2 polos)</label>
+          <label htmlFor={`${idPrefix}-type`}>Tipo (2 polos)</label>
           <select
-            id="vcf2-type"
+            id={`${idPrefix}-type`}
             className="control-select"
             value={type}
             onChange={(e) => setType(e.target.value as Vcf2Type)}
@@ -71,6 +77,7 @@ export const VCF2: React.FC<VCF2Props> = ({
             step={1}
             display={`${freq.toFixed(0)} Hz`}
             onChange={setFreq}
+            midiId={`${idPrefix}-freq`}
           />
           <Knob
             label="Reson."
@@ -80,6 +87,7 @@ export const VCF2: React.FC<VCF2Props> = ({
             step={0.1}
             display={res.toFixed(1)}
             onChange={setRes}
+            midiId={`${idPrefix}-res`}
           />
         </div>
 

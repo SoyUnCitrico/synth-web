@@ -9,18 +9,28 @@ interface MidiProps {
   deviceNames: string[];
   /** Indicador de actividad (cambia con cada mensaje recibido). */
   activity: number;
-  /** Mapa slot→número de CC (null = sin asignar). */
-  midiMap: (number | null)[];
-  /** Slot actualmente en "aprendizaje" (o null). */
-  learningSlot: number | null;
   onEnable: () => void;
-  onLearn: (slot: number) => void;
-  onClear: (slot: number) => void;
   // Cuantizador de escala (se aplica a las fuentes conectadas a "Cuant" en la matriz MIDI).
   quantScale: string;
   setQuantScale: (id: string) => void;
   quantRoot: number; // clase de altura 0..11
   setQuantRoot: (pc: number) => void;
+  // --- Modo slots (Modulor): mapa slot→CC como fuentes de la matriz. ---
+  /** Mapa slot→número de CC (null = sin asignar). */
+  midiMap?: (number | null)[];
+  /** Slot actualmente en "aprendizaje" (o null). */
+  learningSlot?: number | null;
+  onLearn?: (slot: number) => void;
+  onClear?: (slot: number) => void;
+  // --- Modo directo (Makwil): MIDI-learn global a perillas/sliders. ---
+  /** Si se pasa, activa la UI de "MIDI Learn" directo en vez de la lista de slots. */
+  learnMode?: boolean;
+  onToggleLearnMode?: () => void;
+  /** Asignaciones actuales paramId→nº de CC. */
+  assignments?: Record<string, number>;
+  /** ¿Hay un control armado a la espera de CC? */
+  armed?: boolean;
+  onClearAssignment?: (id: string) => void;
 }
 
 /**
@@ -42,7 +52,14 @@ const Midi: React.FC<MidiProps> = ({
   setQuantScale,
   quantRoot,
   setQuantRoot,
+  learnMode,
+  onToggleLearnMode,
+  assignments,
+  armed,
+  onClearAssignment,
 }) => {
+  // Modo directo (Makwil): MIDI-learn a perillas/sliders. Si no, modo slots (Modulor).
+  const directMode = onToggleLearnMode != null;
   return (
     <div className="module midi-module">
       <div className="module-header">
@@ -95,39 +112,79 @@ const Midi: React.FC<MidiProps> = ({
               )}
             </div>
 
-            <p className="midi-hint">
-              Asigna una perilla a un slot y patchéalo a un destino en la Matriz de modulación.
-            </p>
+            {directMode ? (
+              <>
+                <p className="midi-hint">
+                  Activa "MIDI Learn", haz clic en una perilla o slider para armarlo y mueve un
+                  control físico para asignarlo.
+                </p>
+                <button
+                  type="button"
+                  className={`midi-learn midi-learn-toggle ${learnMode ? 'learning' : ''}`}
+                  onClick={onToggleLearnMode}
+                  disabled={!enabled}
+                >
+                  {learnMode ? (armed ? 'Mueve un control…' : 'Learn: clic en un control') : 'MIDI Learn'}
+                </button>
 
-            <ul className="midi-slots">
-              {MIDI_CC_SOURCES.map((src, i) => {
-                const cc = midiMap[i] ?? null;
-                const learning = learningSlot === i;
-                return (
-                  <li className="midi-slot" key={src.id}>
-                    <span className="midi-slot-name">{src.label}</span>
-                    <span className="midi-slot-cc">{cc != null ? `CC ${cc}` : '—'}</span>
-                    <button
-                      type="button"
-                      className={`midi-learn ${learning ? 'learning' : ''}`}
-                      onClick={() => onLearn(i)}
-                      disabled={!enabled}
-                    >
-                      {learning ? 'Mueve…' : 'Aprender'}
-                    </button>
-                    <button
-                      type="button"
-                      className="midi-clear"
-                      onClick={() => onClear(i)}
-                      disabled={cc == null}
-                      aria-label={`Borrar mapeo de ${src.label}`}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                <ul className="midi-slots">
+                  {Object.entries(assignments ?? {}).length === 0 ? (
+                    <li className="midi-slot midi-slot-empty">Sin asignaciones</li>
+                  ) : (
+                    Object.entries(assignments ?? {}).map(([id, cc]) => (
+                      <li className="midi-slot" key={id}>
+                        <span className="midi-slot-name">{id}</span>
+                        <span className="midi-slot-cc">{`CC ${cc}`}</span>
+                        <button
+                          type="button"
+                          className="midi-clear"
+                          onClick={() => onClearAssignment?.(id)}
+                          aria-label={`Borrar asignación de ${id}`}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </>
+            ) : (
+              <>
+                <p className="midi-hint">
+                  Asigna una perilla a un slot y patchéalo a un destino en la Matriz de modulación.
+                </p>
+
+                <ul className="midi-slots">
+                  {MIDI_CC_SOURCES.map((src, i) => {
+                    const cc = midiMap?.[i] ?? null;
+                    const learning = learningSlot === i;
+                    return (
+                      <li className="midi-slot" key={src.id}>
+                        <span className="midi-slot-name">{src.label}</span>
+                        <span className="midi-slot-cc">{cc != null ? `CC ${cc}` : '—'}</span>
+                        <button
+                          type="button"
+                          className={`midi-learn ${learning ? 'learning' : ''}`}
+                          onClick={() => onLearn?.(i)}
+                          disabled={!enabled}
+                        >
+                          {learning ? 'Mueve…' : 'Aprender'}
+                        </button>
+                        <button
+                          type="button"
+                          className="midi-clear"
+                          onClick={() => onClear?.(i)}
+                          disabled={cc == null}
+                          aria-label={`Borrar mapeo de ${src.label}`}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
           </>
         )}
       </div>

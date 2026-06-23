@@ -38,7 +38,11 @@
   font-weight: 400;
   color-scheme: dark;
   color: var(--ink);
-  background-color: var(--bg-1);
+  /* OJO: el :root (html) NO lleva background-color a propósito. Así el fondo del <body>
+     (consola oscura, o pergamino en makwil-codex) se PROPAGA al viewport y se pinta en el
+     fondo absoluto — por DEBAJO de los elementos con z-index negativo. Eso permite que el
+     canvas del fondo generativo (FlowerField, z-index:-1) se vea sobre el fondo. Si se
+     reintroduce un background en :root, el pergamino taparía la animación. */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

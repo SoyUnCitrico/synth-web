@@ -8,3 +8,23 @@
   stroke: #b06bff;
   filter: drop-shadow(0 0 4px rgba(176, 107, 255, 0.8));
 }
+
+/* Perillas del AD en fila (sustituyen a los faders verticales). */
+.filterenv-knobs {
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 0.4rem 0 0.2rem;
+}
+
+
+.filterenv-display {
+  height: 80%;
+  align-self: center;
+}
+
+.filterenv-controls {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  margin-top: -10px;
+}

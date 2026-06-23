@@ -1,6 +1,7 @@
 import React from 'react';
-import Fader from '../../Fader/Fader';
+import Knob from '../../Knob/Knob';
 import CurveToggle from '../CurveToggle/CurveToggle';
+import { ENV_ATTACK_SCALE, ENV_DECAY_SCALE } from '../../../utils/scale';
 import type { EnvCurve } from '../../../audio/useSynthEngine';
 import './FilterEnv.css';
 
@@ -52,25 +53,29 @@ export const FilterEnv: React.FC<FilterEnvProps> = ({
         <h2>{label}</h2>
         <CurveToggle curve={curve} setCurve={setCurve} />
       </div>
-      <div className="module-controls">
-        <div className="envelope-display">
-          <svg viewBox="0 0 100 50" className="filterenv-svg">
-            <path d={createPath()} fill="none" stroke="currentColor" strokeWidth="2" />
+      <div className="module-controls filterenv-controls">
+        <div className="envelope-display filterenv-display">
+          <svg viewBox="0 0 100 10" className="filterenv-svg">
+            <path d={createPath()} fill="none" stroke="currentColor" strokeWidth="3" />
           </svg>
         </div>
 
-        <div className="fader-bank">
-          <Fader
-            id={`${id}-attack`} label="Atk" min={0.01} max={2} step={0.01}
+        <div className="filterenv-knobs">
+          {/* Ataque y decay con escala logarítmica: control exponencial, más resolución en tiempos cortos. */}
+          <Knob
+            id={`${id}-attack`} label="Atk" scale={ENV_ATTACK_SCALE} step={0.01}
             value={attack} display={`${attack.toFixed(2)}s`} onChange={setAttack}
+            midiId={`${id}-attack`}
           />
-          <Fader
-            id={`${id}-decay`} label="Dec" min={0.01} max={3} step={0.01}
+          <Knob
+            id={`${id}-decay`} label="Dec" scale={ENV_DECAY_SCALE} step={0.01}
             value={decay} display={`${decay.toFixed(2)}s`} onChange={setDecay}
+            midiId={`${id}-decay`}
           />
-          <Fader
+          <Knob
             id={`${id}-amount`} label="Amt" min={-1.2} max={1.2} step={0.01}
             value={amount} display={`${(amount * 100).toFixed(0)}%`} onChange={setAmount}
+            midiId={`${id}-amount`}
           />
         </div>
       </div>

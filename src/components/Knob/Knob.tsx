@@ -1,10 +1,11 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { LinearScale, type Scale } from '../../utils/scale';
+import { useMidiLearn } from '../../audio/midi/MidiLearnContext';
 import './Knob.css';
 
 interface KnobProps {
   id?: string;
-  label: string;
+  label?: string;
   value: number;
   /** Para escala lineal por defecto; ignorados si se pasa `scale`. */
   min?: number;
@@ -17,6 +18,8 @@ interface KnobProps {
   display?: string;
   disabled?: boolean;
   onChange: (value: number) => void;
+  /** Id estable para MIDI-learn directo (opcional; solo activo bajo MidiLearnProvider). */
+  midiId?: string;
 }
 
 // Recorrido angular de la perilla (270°, hueco abajo) estilo equipo analógico.
@@ -37,7 +40,7 @@ const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
  */
 const Knob: React.FC<KnobProps> = ({
   id,
-  label,
+  label = "",
   value,
   min = 0,
   max = 1,
@@ -46,6 +49,7 @@ const Knob: React.FC<KnobProps> = ({
   display,
   disabled = false,
   onChange,
+  midiId,
 }) => {
   const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
   const resolved = useMemo<Scale>(() => scale ?? new LinearScale(min, max), [scale, min, max]);
@@ -59,8 +63,27 @@ const Knob: React.FC<KnobProps> = ({
     onChange(Math.min(resolved.max, Math.max(resolved.min, q)));
   };
 
+  // --- MIDI-learn directo ---
+  const midi = useMidiLearn();
+  const learnable = midi.active && !!midiId && !disabled;
+  const armed = learnable && midi.armedId === midiId;
+  const cc = midi.active && midiId ? midi.ccFor(midiId) : null;
+  // El CC mueve la perilla por POSICIÓN 0..1 (respeta la escala log). Registro único vía ref.
+  const applyRef = useRef<(norm: number) => void>(() => {});
+  applyRef.current = (norm: number) => applyPosition(norm);
+  useEffect(() => {
+    if (!learnable || !midiId) return;
+    return midi.register(midiId, (norm) => applyRef.current(norm));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learnable, midiId, midi.register]);
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return;
+    if (learnable && midi.learnMode) {
+      e.preventDefault();
+      midi.arm(midiId!);
+      return;
+    }
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     dragRef.current = { startY: e.clientY, startPos: position };
   };
@@ -90,7 +113,7 @@ const Knob: React.FC<KnobProps> = ({
   };
 
   return (
-    <div className={`knob-wrap ${disabled ? 'disabled' : ''}`}>
+    <div className={`knob-wrap ${disabled ? 'disabled' : ''} ${armed ? 'midi-armed' : ''} ${cc != null ? 'midi-assigned' : ''}`}>
       <span className="knob-name">{label}</span>
       <div
         id={id}
@@ -112,6 +135,7 @@ const Knob: React.FC<KnobProps> = ({
         </div>
       </div>
       {display !== undefined && <span className="knob-value">{display}</span>}
+      {cc != null && <span className="midi-cc-badge">CC{cc}</span>}
     </div>
   );
 };

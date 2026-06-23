@@ -392,7 +392,9 @@ const Modulor: React.FC = () => {
         else if (dest.id === 'osc2') engine.setOscNote(1, outNote, time);
         else if (dest.id === 'osc3') engine.setOscNote(2, outNote, time);
         else if (dest.id === 'osc4') engine.setOscNote(3, outNote, time);
-        else engine.setFilterKeyTrack(dest.id, outNote, time);
+        // 'vcf3' existe en el tipo NoteDestId (compartido con Makwil) pero no en las NOTE_DESTS
+        // de Modulor; el cast acota al conjunto que su motor soporta.
+        else engine.setFilterKeyTrack(dest.id as 'filter1' | 'vcf2' | 'noiseFilter', outNote, time);
       }
     },
     [engine],
