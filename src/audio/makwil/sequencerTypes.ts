@@ -42,7 +42,16 @@ export interface SeqConfig {
   direction: SeqDirection;
   clock: string; // subdivisión de Tone; el seq 1 ignora esto y usa BASE_CLOCK
   octave: number; // 0..MAX_OCTAVE (desplazamiento de octava de los pasos de pitch)
+  /** Portamento entre notas (sólo seq de pitch 0,1,2). Por defecto false. Opcional: leer con `?? false`. */
+  glide?: boolean;
+  /** Tiempo de glide en segundos (GLIDE_MIN..GLIDE_MAX). Opcional: leer con `?? GLIDE_DEFAULT`. */
+  glideTime?: number;
 }
+
+/** Rango y valor por defecto del tiempo de glide (segundos). */
+export const GLIDE_MIN = 0.005;
+export const GLIDE_MAX = 0.5;
+export const GLIDE_DEFAULT = 0.08;
 
 /** Paso del secuenciador de pitch (seq1). */
 export interface PitchStep {

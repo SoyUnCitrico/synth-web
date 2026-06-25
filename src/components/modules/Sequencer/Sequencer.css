@@ -97,6 +97,27 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Glide (portamento) de los secuenciadores de pitch: botón + slider de tiempo. */
+.seq-glide-ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.seq-glide-btn {
+  flex: none;
+}
+.seq-glide-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04100c;
+}
+.seq-glide-ctl .control-slider {
+  flex: 1;
+}
+.seq-glide-ctl .control-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .seq-lane {
   margin-top: 0.35rem;

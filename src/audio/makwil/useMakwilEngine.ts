@@ -25,17 +25,28 @@ const VOL_MUTE_DB = -40;
 const dbToGainMuted = (db: number): number => (db <= VOL_MUTE_DB ? 0 : Tone.dbToGain(db));
 const safeFreq = (v: number, fallback: number): number => (Number.isFinite(v) && v > 0 ? v : fallback);
 
-/** Aplica forma de onda a un OmniOscillator de pulso (PWM en modo cuadrada). */
+/**
+ * Aplica forma de onda a un OmniOscillator de pulso (PWM en modo cuadrada).
+ *
+ * `widthBus` (opcional): bus de modulación persistente para el PWM. Como `osc.width` pertenece al
+ * PulseOscillator interno (identidad NUEVA en cada transición a pulso, e `undefined` fuera de
+ * pulso), el bus se reconecta al `width` vivo SÓLO en la transición a pulso. Así la matriz de
+ * modulación apunta a un destino estable (el bus) y la mod sobrevive a los cambios de onda.
+ */
 function applyWaveform(
   osc: Tone.OmniOscillator<Tone.PulseOscillator>,
   type: Tone.ToneOscillatorType,
   pwm: number,
+  widthBus?: Tone.Gain,
 ) {
   if (type === 'square') {
-    if (osc.type !== 'pulse') osc.type = 'pulse';
+    if (osc.type !== 'pulse') {
+      osc.type = 'pulse';
+      if (widthBus && osc.width) widthBus.connect(osc.width); // re-cablear al width recién creado
+    }
     osc.width.setValueAtTime(pwm, Tone.now());
   } else if (osc.type !== type) {
-    osc.type = type;
+    osc.type = type; // se descarta el PulseOscillator (y su width); el bus queda sin destino
   }
 }
 
@@ -157,8 +168,12 @@ export interface MakwilParams {
 }
 
 export interface MakwilEngine {
-  /** Ataque de una voz polifónica del VCO 1 (por nota). Cada nota toma una voz libre. */
-  polyAttack: (note: string, time?: number, velocity?: number) => void;
+  /**
+   * Ataque de una voz polifónica del VCO 1 (por nota). Cada nota toma una voz libre.
+   * `glideTime` (s) aplica portamento *best-effort* (el PolySynth no desliza entre pasos: cada
+   * nota cae en una voz nueva); 0 = sin portamento.
+   */
+  polyAttack: (note: string, time?: number, velocity?: number, glideTime?: number) => void;
   /** Release de una voz polifónica del VCO 1 (por nota). */
   polyRelease: (note: string, time?: number) => void;
   /** Suelta todas las voces poli (al parar el transporte / pánico). */
@@ -167,10 +182,16 @@ export interface MakwilEngine {
   envAttack: (dest: GateDestId, time?: number, velocity?: number) => void;
   /** Release de una envolvente mono (destinos tipo gate, p. ej. el ADSR). */
   envRelease: (dest: GateDestId, time?: number) => void;
-  /** Fija el pitch de un VCO MONO (VCO2/VCO3/VCO4) sin re-disparar la envolvente. */
-  setOscNote: (target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number) => void;
-  /** Seguimiento de teclado sobre un filtro (cutoff relativo vía detune, C4 = neutral). */
-  setFilterKeyTrack: (dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number) => void;
+  /**
+   * Fija el pitch de un VCO MONO (VCO2/VCO3/VCO4) sin re-disparar la envolvente.
+   * `glideTime` (s) > 0 desliza la frecuencia (portamento) en vez de saltar.
+   */
+  setOscNote: (target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number, glideTime?: number) => void;
+  /**
+   * Seguimiento de teclado sobre un filtro (cutoff relativo vía detune, C4 = neutral).
+   * `glideTime` (s) > 0 desliza el detune (portamento) en vez de saltar.
+   */
+  setFilterKeyTrack: (dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number, glideTime?: number) => void;
   /** Fuentes de CV de los secuenciadores 2..5 (0..1). */
   setSeqCv: (value: number, time?: number) => void;
   setSeqCv2: (value: number, time?: number) => void;
@@ -219,6 +240,10 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   const seqCv3Ref = useRef<Tone.Signal<'number'> | null>(null);
   const seqCv4Ref = useRef<Tone.Signal<'number'> | null>(null);
   const matrixRef = useRef<ModMatrix | null>(null);
+  // Buses persistentes de modulación del PWM (VCO3/VCO4): destino estable de la matriz, se
+  // reconectan al `width` vivo en cada transición a pulso (ver applyWaveform).
+  const osc3WidthBusRef = useRef<Tone.Gain | null>(null);
+  const osc4WidthBusRef = useRef<Tone.Gain | null>(null);
   const filterRef = useRef<Tone.Filter | null>(null);
   const vcf2Ref = useRef<Tone.Filter | null>(null);
   const vcf3Ref = useRef<Tone.Filter | null>(null);
@@ -272,11 +297,14 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     osc2.harmonicity.value = params.fmHarmonicity;
     osc2.modulationIndex.value = params.fmModIndex;
     osc2.detune.value = params.osc2Fine;
+    // Buses de modulación de PWM (creados antes de los osc para pasarlos a applyWaveform).
+    const osc3WidthBus = new Tone.Gain(1);
+    const osc4WidthBus = new Tone.Gain(1);
     const osc3 = new Tone.OmniOscillator<Tone.PulseOscillator>(safeFreq(params.osc3Freq, 440), 'sine');
-    applyWaveform(osc3, params.osc3Type, params.pwm3);
+    applyWaveform(osc3, params.osc3Type, params.pwm3, osc3WidthBus);
     osc3.detune.value = params.osc3Fine;
     const osc4 = new Tone.OmniOscillator<Tone.PulseOscillator>(safeFreq(params.osc4Freq, 440), 'sine');
-    applyWaveform(osc4, params.osc4Type, params.pwm4);
+    applyWaveform(osc4, params.osc4Type, params.pwm4, osc4WidthBus);
     osc4.detune.value = params.osc4Fine;
     const noise = new Tone.Noise(params.noiseType);
     const noiseFilter = new Tone.Filter({ type: 'bandpass', frequency: params.noiseFilterFreq, Q: params.noiseFilterRes });
@@ -396,6 +424,9 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     matrix.registerDest({ id: 'osc2Detune', param: osc2.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc3Detune', param: osc3.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
     matrix.registerDest({ id: 'osc4Detune', param: osc4.detune, unitPerAmount: LFO_PITCH_RANGE_CENTS });
+    // PWM: el destino estable es el bus persistente (no osc.width, que cambia de identidad).
+    matrix.registerDest({ id: 'osc3Width', param: osc3WidthBus, unitPerAmount: 0.95 });
+    matrix.registerDest({ id: 'osc4Width', param: osc4WidthBus, unitPerAmount: 0.95 });
     matrix.registerDest({ id: 'fmIndex', param: osc2.modulationIndex, unitPerAmount: 15 });
     matrix.registerDest({ id: 'fmHarmonicity', param: osc2.harmonicity, unitPerAmount: 4 });
     matrix.registerDest({ id: 'filterFreq', param: filter.detune, unitPerAmount: FILTER_MOD_RANGE_CENTS });
@@ -423,6 +454,8 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     osc2Ref.current = osc2;
     osc3Ref.current = osc3;
     osc4Ref.current = osc4;
+    osc3WidthBusRef.current = osc3WidthBus;
+    osc4WidthBusRef.current = osc4WidthBus;
     noiseRef.current = noise;
     noiseFilterRef.current = noiseFilter;
     ch1Ref.current = ch1;
@@ -472,6 +505,8 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       osc2.dispose();
       osc3.dispose();
       osc4.dispose();
+      osc3WidthBus.dispose();
+      osc4WidthBus.dispose();
       noise.dispose();
       noiseFilter.dispose();
       ch1.dispose();
@@ -552,7 +587,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
 
   // VCO 3 (pulso)
   useEffect(() => {
-    if (osc3Ref.current) applyWaveform(osc3Ref.current, params.osc3Type, params.pwm3);
+    if (osc3Ref.current) applyWaveform(osc3Ref.current, params.osc3Type, params.pwm3, osc3WidthBusRef.current ?? undefined);
   }, [params.osc3Type, params.pwm3]);
   useEffect(() => {
     osc3Ref.current?.frequency.setValueAtTime(safeFreq(params.osc3Freq, 440), Tone.now());
@@ -563,7 +598,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
 
   // VCO 4 (pulso)
   useEffect(() => {
-    if (osc4Ref.current) applyWaveform(osc4Ref.current, params.osc4Type, params.pwm4);
+    if (osc4Ref.current) applyWaveform(osc4Ref.current, params.osc4Type, params.pwm4, osc4WidthBusRef.current ?? undefined);
   }, [params.osc4Type, params.pwm4]);
   useEffect(() => {
     osc4Ref.current?.frequency.setValueAtTime(safeFreq(params.osc4Freq, 440), Tone.now());
@@ -895,8 +930,11 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   }, [params.chebyWet]);
 
   // --- API imperativa ---
-  const polyAttack = useCallback((note: string, time?: number, velocity = 1) => {
+  const polyAttack = useCallback((note: string, time?: number, velocity = 1, glideTime = 0) => {
     if (Tone.context.state !== 'running') Tone.start();
+    // Portamento best-effort: el PolySynth no desliza entre pasos (voz nueva por nota), pero
+    // mantener el ajuste sincronizado evita un glide residual al apagar el botón.
+    polySynthRef.current?.set({ portamento: glideTime > 0 ? glideTime : 0 });
     polySynthRef.current?.triggerAttack(note, time ?? Tone.now(), velocity);
   }, []);
   const polyRelease = useCallback((note: string, time?: number) => {
@@ -906,17 +944,23 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     polySynthRef.current?.releaseAll();
   }, []);
 
-  const setOscNote = useCallback((target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number) => {
+  const setOscNote = useCallback((target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number, glideTime = 0) => {
     const osc = { osc2: osc2Ref, osc3: osc3Ref, osc4: osc4Ref }[target].current;
-    osc?.frequency.setValueAtTime(Tone.Frequency(note).toFrequency(), time ?? Tone.now());
+    if (!osc) return;
+    const freq = Tone.Frequency(note).toFrequency();
+    const t = time ?? Tone.now();
+    if (glideTime > 0) osc.frequency.rampTo(freq, glideTime, t); // portamento
+    else osc.frequency.setValueAtTime(freq, t);
   }, []);
 
-  const setFilterKeyTrack = useCallback((dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number) => {
+  const setFilterKeyTrack = useCallback((dest: 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', note: string, time?: number, glideTime = 0) => {
     const ref = { filter1: filterRef, vcf2: vcf2Ref, vcf3: vcf3Ref, noiseFilter: noiseFilterRef }[dest];
     const filter = ref.current;
     if (!filter) return;
     const cents = (Tone.Frequency(note).toMidi() - 60) * 100;
-    filter.detune.setValueAtTime(cents, time ?? Tone.now());
+    const t = time ?? Tone.now();
+    if (glideTime > 0) filter.detune.rampTo(cents, glideTime, t); // portamento del cutoff
+    else filter.detune.setValueAtTime(cents, t);
   }, []);
 
   const envFor = useCallback((dest: GateDestId) => {

@@ -47,6 +47,7 @@ import {
   SEQ_COUNT,
   BASE_CLOCK,
   DEFAULT_PITCH_OFFSET,
+  GLIDE_DEFAULT,
   type SeqConfig,
   type PitchStep,
   type CvStep,
@@ -87,6 +88,8 @@ const makeSeqConfigs = (): SeqConfig[] =>
     direction: 'forward' as const,
     clock: BASE_CLOCK,
     octave: 0,
+    glide: false,
+    glideTime: GLIDE_DEFAULT,
   }));
 
 const Makwil: React.FC = () => {
@@ -326,22 +329,26 @@ const Makwil: React.FC = () => {
   const polyConnected = useCallback((source: NoteSourceId): boolean => !!notePatchRef.current[noteKey(source, 'osc1')], []);
 
   // Ruteo de nota a los VCO MONO (VCO2/3/4) y al seguimiento de cutoff de los filtros.
+  // `glideTime` (s) > 0 desliza el pitch en vez de saltar (portamento del secuenciador).
   const routeNoteMono = useCallback(
-    (source: NoteSourceId, note: string, time?: number) => {
+    (source: NoteSourceId, note: string, time?: number, glideTime = 0) => {
       const outNote = applyQuant(source, note);
       for (const dest of MAKWIL_NOTE_DESTS) {
         if (dest.id === 'quant' || dest.id === 'osc1') continue; // 'osc1' es poli (aparte)
         if (!notePatchRef.current[noteKey(source, dest.id)]) continue;
-        if (dest.id === 'osc2' || dest.id === 'osc3' || dest.id === 'osc4') engine.setOscNote(dest.id, outNote, time);
-        else engine.setFilterKeyTrack(dest.id as 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', outNote, time);
+        if (dest.id === 'osc2' || dest.id === 'osc3' || dest.id === 'osc4') engine.setOscNote(dest.id, outNote, time, glideTime);
+        else engine.setFilterKeyTrack(dest.id as 'filter1' | 'vcf2' | 'vcf3' | 'noiseFilter', outNote, time, glideTime);
       }
     },
     [engine, applyQuant],
   );
 
+  // `legato` true (paso ligado a uno previo con gate al máximo): cambia el pitch SIN re-disparar
+  // las envolventes (la compuerta sigue sostenida). `glideTime` (s) > 0 desliza el pitch.
   const fireGateAttack = useCallback(
-    (source: GateSourceId, note: string | undefined, time?: number, velocity = 1) => {
-      if (note) routeNoteMono(source as NoteSourceId, note, time);
+    (source: GateSourceId, note: string | undefined, time?: number, velocity = 1, glideTime = 0, legato = false) => {
+      if (note) routeNoteMono(source as NoteSourceId, note, time, glideTime);
+      if (legato) return; // ligado: sólo cambia el pitch, no re-ataca las envolventes
       for (const dest of MAKWIL_GATE_DESTS) {
         if (gatePatchRef.current[gateKey(source, dest.id)]) engine.envAttack(dest.id, time, velocity);
       }
@@ -361,13 +368,20 @@ const Makwil: React.FC = () => {
   // --- Despacho de notas del SECUENCIADOR (poli por fuente + mono). ---
   const lastSeqPolyRef = useRef<Partial<Record<string, string>>>({});
   const seqFireAttack = useCallback(
-    (source: GateSourceId, note: string | undefined, time: number, velocity: number) => {
+    (source: GateSourceId, note: string | undefined, time: number, velocity: number, opts: { glide: boolean; glideTime: number; legato: boolean }) => {
+      const gt = opts.glide ? opts.glideTime : 0;
       if (note && polyConnected(source as NoteSourceId)) {
         const q = applyQuant(source as NoteSourceId, note);
-        engine.polyAttack(q, time, velocity);
+        // Aun en pasos ligados re-disparamos la voz poli para actualizar su pitch (el PolySynth
+        // no expone setNote por voz). El click de amplitud se evita omitiendo el re-ataque de la
+        // envolvente amp en fireGateAttack (legato). En un tie no se programó release, así que
+        // soltamos la nota poli previa aquí para no apilar voces.
+        const prev = lastSeqPolyRef.current[source];
+        if (prev) engine.polyRelease(prev, time);
+        engine.polyAttack(q, time, velocity, gt);
         lastSeqPolyRef.current[source] = q;
       }
-      fireGateAttack(source, note, time, velocity);
+      fireGateAttack(source, note, time, velocity, gt, opts.legato);
     },
     [engine, polyConnected, applyQuant, fireGateAttack],
   );

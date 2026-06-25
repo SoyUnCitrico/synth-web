@@ -6,6 +6,9 @@ import {
   MAX_OCTAVE,
   CLOCK_OPTIONS,
   DEFAULT_PITCH_OFFSET,
+  GLIDE_MIN,
+  GLIDE_MAX,
+  GLIDE_DEFAULT,
   type SeqConfig,
   type SeqDirection,
   type PitchStep,
@@ -183,6 +186,35 @@ const SeqControls: React.FC<{
           >
             +
           </button>
+        </div>
+      </div>
+    )}
+    {/* Glide (portamento) entre notas — sólo en los secuenciadores de pitch. */}
+    {hasOctave && (
+      <div className="control-group">
+        <label htmlFor={`seq-${index}-glide`}>
+          Glide: {((config.glideTime ?? GLIDE_DEFAULT) * 1000).toFixed(0)} ms
+        </label>
+        <div className="seq-glide-ctl">
+          <button
+            className={`seq-btn seq-glide-btn ${config.glide ? 'on' : ''}`}
+            onClick={() => onChange({ glide: !(config.glide ?? false) })}
+            aria-pressed={config.glide ?? false}
+            aria-label="Activar/desactivar glide"
+          >
+            Glide
+          </button>
+          <input
+            type="range"
+            id={`seq-${index}-glide`}
+            min={GLIDE_MIN}
+            max={GLIDE_MAX}
+            step={0.005}
+            value={config.glideTime ?? GLIDE_DEFAULT}
+            onChange={(e) => onChange({ glideTime: parseFloat(e.target.value) })}
+            className="control-slider"
+            disabled={!(config.glide ?? false)}
+          />
         </div>
       </div>
     )}

@@ -7,10 +7,19 @@ import {
   SEQ_COUNT,
   SEQ_ROOT,
   DEFAULT_PITCH_OFFSET,
+  GLIDE_DEFAULT,
   type SeqConfig,
   type PitchStep,
   type CvStep,
 } from './sequencerTypes';
+
+/** Opciones de glide/ligado pasadas al despacho de cada paso. */
+interface StepAttackOpts {
+  glide: boolean;
+  glideTime: number;
+  /** El paso anterior dejó la compuerta sostenida (gate al máximo): cambia el pitch sin re-atacar. */
+  legato: boolean;
+}
 
 interface UseMakwilSequencerOptions {
   running: boolean;
@@ -23,8 +32,8 @@ interface UseMakwilSequencerOptions {
   cv2Steps: CvStep[];
   cv3Steps: CvStep[];
   cv4Steps: CvStep[];
-  /** Ataque de una fuente de gate (nota opcional para fijar pitch; velocity 0..1). */
-  fireAttack: (source: GateSourceId, note: string | undefined, time: number, velocity: number) => void;
+  /** Ataque de una fuente de gate (nota opcional para fijar pitch; velocity 0..1; glide/ligado). */
+  fireAttack: (source: GateSourceId, note: string | undefined, time: number, velocity: number, opts: StepAttackOpts) => void;
   /** Libera la compuerta de una fuente de gate. */
   fireRelease: (source: GateSourceId, time: number) => void;
   /** Escribe las fuentes de CV de los secuenciadores 2..5. */
@@ -60,6 +69,10 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
   const dataRef = useRef(opts);
   dataRef.current = opts;
 
+  // Por secuenciador: la compuerta quedó abierta por un paso con gate al máximo (tie). El
+  // siguiente paso disparado se trata como ligado (cambia el pitch sin re-atacar la envolvente).
+  const heldRef = useRef<boolean[]>(Array.from({ length: SEQ_COUNT }, () => false));
+
   const [currentSteps, setCurrentSteps] = useState<number[]>(() => Array.from({ length: SEQ_COUNT }, () => -1));
 
   const setStep = useCallback((seq: number, index: number) => {
@@ -94,21 +107,37 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
         () => dataRef.current.configs[seq]?.direction ?? 'forward',
         (index, time) => {
           const source = GATE_SOURCES[seq];
+          const cfg = dataRef.current.configs[seq];
           const stepDur = Tone.Time('16n').toSeconds();
           const gateOff = (gateLen: number) => time + Math.min(gateLen, 0.95) * stepDur;
-          const octave = dataRef.current.configs[seq]?.octave ?? 0;
+          const octave = cfg?.octave ?? 0;
+          // Glide sólo en los secuenciadores de pitch (0,1,2).
+          const glide = PITCH_SEQS.has(seq) ? (cfg?.glide ?? false) : false;
+          const glideTime = cfg?.glideTime ?? GLIDE_DEFAULT;
           const s = stepData[seq]()[index];
           if (!s) return;
 
+          // Dispara un paso con gate aplicando la lógica de tie (gate continuo al máximo).
+          const fireGatedStep = (note: string | undefined, velocity: number, gateLen: number) => {
+            const legato = heldRef.current[seq]; // ligado si el paso previo dejó la compuerta sostenida
+            dataRef.current.fireAttack(source, note, time, velocity, { glide, glideTime, legato });
+            if (gateLen >= 0.999) {
+              // Gate al máximo: NO programar release; la compuerta queda abierta hasta el próximo paso.
+              heldRef.current[seq] = true;
+            } else {
+              dataRef.current.fireRelease(source, gateOff(gateLen));
+              heldRef.current[seq] = false;
+            }
+          };
+          const releaseStep = () => {
+            dataRef.current.fireRelease(source, time); // cierra cualquier tie sostenido
+            heldRef.current[seq] = false;
+          };
+
           if (seq === 0) {
             const ps = s as PitchStep;
-            if (ps.gate) {
-              const note = stepNote(ps.offset, octave);
-              dataRef.current.fireAttack(source, note, time, ps.velocity);
-              dataRef.current.fireRelease(source, gateOff(ps.gateLen));
-            } else {
-              dataRef.current.fireRelease(source, time);
-            }
+            if (ps.gate) fireGatedStep(stepNote(ps.offset, octave), ps.velocity, ps.gateLen);
+            else releaseStep();
           } else {
             // CV continuo + gate. seq2/seq3 además emiten nota desde su offset.
             const cs = s as CvStep;
@@ -116,12 +145,8 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
             const note = PITCH_SEQS.has(seq)
               ? stepNote(cs.offset ?? DEFAULT_PITCH_OFFSET, octave)
               : undefined;
-            if (cs.gate) {
-              dataRef.current.fireAttack(source, note, time, 1);
-              dataRef.current.fireRelease(source, gateOff(cs.gateLen));
-            } else {
-              dataRef.current.fireRelease(source, time);
-            }
+            if (cs.gate) fireGatedStep(note, 1, cs.gateLen);
+            else releaseStep();
           }
 
           Tone.getDraw().schedule(() => setStep(seq, index), time);
@@ -160,6 +185,7 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
       transport.stop();
       seqs.forEach((s) => s.stop());
       setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
+      heldRef.current.fill(false); // que un tie sostenido no se filtre al reanudar
       const now = Tone.now();
       GATE_SOURCES.forEach((src) => dataRef.current.fireRelease(src, now));
     }
@@ -177,6 +203,7 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
 
   const reset = useCallback(() => {
     seqsRef.current.forEach((s) => s.reset());
+    heldRef.current.fill(false);
     setCurrentSteps(Array.from({ length: SEQ_COUNT }, () => -1));
   }, []);
 

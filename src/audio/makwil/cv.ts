@@ -44,6 +44,8 @@ export const MAKWIL_MOD_DESTS: PatchDest[] = [
   { id: 'osc2Detune', label: 'VCO 2', short: 'V2' },
   { id: 'osc3Detune', label: 'VCO 3', short: 'V3' },
   { id: 'osc4Detune', label: 'VCO 4', short: 'V4' },
+  { id: 'osc3Width', label: 'PWM 3', short: 'PW3' },
+  { id: 'osc4Width', label: 'PWM 4', short: 'PW4' },
   { id: 'fmIndex', label: 'FM idx', short: 'FMi' },
   { id: 'fmHarmonicity', label: 'FM hrm', short: 'FMh' },
   { id: 'filterFreq', label: 'Cut 1', short: 'C1' },

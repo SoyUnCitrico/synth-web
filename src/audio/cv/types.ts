@@ -41,6 +41,9 @@ export type ModDestId =
   | 'osc2Detune'
   | 'osc3Detune'
   | 'osc4Detune'
+  // Ancho de pulso (PWM) de los VCO de pulso (Makwil VCO3/VCO4). Sólo activo en onda cuadrada.
+  | 'osc3Width'
+  | 'osc4Width'
   | 'filterFreq'
   | 'filterQ'
   | 'vcf2Freq'
