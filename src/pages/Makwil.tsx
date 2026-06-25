@@ -19,6 +19,7 @@ import Midi from '../components/modules/Midi/Midi';
 import { useMidi } from '../audio/midi/useMidi';
 import { useMidiLearnState, MidiLearnContext } from '../audio/midi/MidiLearnContext';
 import Keyboard from '../components/modules/Keyboard/Keyboard';
+import Recorder from '../components/modules/Recorder/Recorder';
 import { ALL_KEYS } from '../components/modules/Keyboard/layout';
 import { useMakwilEngine } from '../audio/makwil/useMakwilEngine';
 import { scaleIntervals, quantizeNote } from '../audio/scales';
@@ -54,11 +55,13 @@ import {
 } from '../audio/makwil/sequencerTypes';
 import type { NoiseType, Vcf2Type, Vcf2Source, EnvCurve } from '../audio/useSynthEngine';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { AUDIO_FREQ_SCALE } from '../utils/scale';
 import { MAKWIL_KEYS } from '../audio/makwil/persistKeys';
 import Presets from '../components/Presets/Presets';
 import { MAKWIL_MODULE_SECTIONS, KEYBOARD_SECTION_ID } from '../components/BottomNav/makwilSections';
 import BottomNav from '../components/BottomNav/BottomNav';
 import { usePresets } from '../presets/usePresets';
+import { useMakwilTheme } from '../theme/MakwilThemeContext';
 import type { MakwilPresetState } from '../audio/makwil/presets';
 import '../App.css';
 import './Makwil.css';
@@ -71,6 +74,12 @@ const UPPER_OCTAVE_KEYS = ALL_KEYS.filter((k) => k.octaveOffset === 1).map((k) =
 // Saneadores de frecuencia persistida (reemplazan null/NaN/0 por su default antes del render).
 const safeOscFreq = (v: number): number => (Number.isFinite(v) && v > 0 ? v : 440);
 const safeFilterFreq = (v: number): number => (Number.isFinite(v) && v > 0 ? v : 20000);
+
+// VCF2/VCF3: la fuente pasó de única (string) a múltiple (array de voces). Migra valores viejos:
+// 'none' → [], 'vcoN' → ['vcoN'], array → tal cual.
+type VcfVoice = Exclude<Vcf2Source, 'none'>;
+const toVcfSources = (v: unknown): VcfVoice[] =>
+  Array.isArray(v) ? (v as VcfVoice[]) : v && v !== 'none' ? [v as VcfVoice] : [];
 
 // Fábricas de pasos por defecto (32 = MAX_STEPS).
 const makePitchSteps = (): PitchStep[] =>
@@ -93,6 +102,9 @@ const makeSeqConfigs = (): SeqConfig[] =>
   }));
 
 const Makwil: React.FC = () => {
+  // Tema visual (oscuro por default). Determina la clase de variante del body/contenedor.
+  const { theme } = useMakwilTheme();
+
   // --- VCO 1 (Fat / POLIFÓNICO) ---
   const [osc1Type, setOsc1Type] = usePersistentState<Tone.ToneOscillatorType>(MAKWIL_KEYS.osc1Type, 'sawtooth');
   const [osc1Freq, setOsc1Freq] = usePersistentState<number>(MAKWIL_KEYS.osc1Freq, 440, safeOscFreq);
@@ -148,13 +160,13 @@ const Makwil: React.FC = () => {
   const [vcf2Type, setVcf2Type] = usePersistentState<Vcf2Type>(MAKWIL_KEYS.vcf2Type, 'lowpass');
   const [vcf2Freq, setVcf2Freq] = usePersistentState<number>(MAKWIL_KEYS.vcf2Freq, 2000);
   const [vcf2Res, setVcf2Res] = usePersistentState<number>(MAKWIL_KEYS.vcf2Res, 1);
-  const [vcf2Source, setVcf2Source] = usePersistentState<Vcf2Source>(MAKWIL_KEYS.vcf2Source, 'none');
+  const [vcf2Source, setVcf2Source] = usePersistentState<VcfVoice[]>(MAKWIL_KEYS.vcf2Source, [], toVcfSources);
 
   // VCF 3 (insert por voz).
   const [vcf3Type, setVcf3Type] = usePersistentState<Vcf2Type>(MAKWIL_KEYS.vcf3Type, 'lowpass');
   const [vcf3Freq, setVcf3Freq] = usePersistentState<number>(MAKWIL_KEYS.vcf3Freq, 2000);
   const [vcf3Res, setVcf3Res] = usePersistentState<number>(MAKWIL_KEYS.vcf3Res, 1);
-  const [vcf3Source, setVcf3Source] = usePersistentState<Vcf2Source>(MAKWIL_KEYS.vcf3Source, 'none');
+  const [vcf3Source, setVcf3Source] = usePersistentState<VcfVoice[]>(MAKWIL_KEYS.vcf3Source, [], toVcfSources);
 
   // Envolventes de modulación.
   const [ad1Attack, setAd1Attack] = usePersistentState<number>(MAKWIL_KEYS.ad1Attack, 0.05);
@@ -274,6 +286,14 @@ const Makwil: React.FC = () => {
   const [cv3Steps, setCv3Steps] = usePersistentState<CvStep[]>(MAKWIL_KEYS.cv3Steps, makeCvSteps);
   const [cv4Steps, setCv4Steps] = usePersistentState<CvStep[]>(MAKWIL_KEYS.cv4Steps, makeCvSteps);
 
+  // Glide (portamento) del teclado y del MIDI, independientes entre sí. Reusa el mismo mecanismo
+  // del secuenciador (engine.setOscNote/polyAttack con glideTime). Aplica a VCO2/3/4 (mono) y, en
+  // best-effort, a VCO1 (poli). Modo "siempre": cada nota nueva desliza desde la anterior.
+  const [kbdGlideEnabled, setKbdGlideEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.kbdGlideEnabled, false);
+  const [kbdGlideTime, setKbdGlideTime] = usePersistentState<number>(MAKWIL_KEYS.kbdGlideTime, GLIDE_DEFAULT);
+  const [midiGlideEnabled, setMidiGlideEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.midiGlideEnabled, false);
+  const [midiGlideTime, setMidiGlideTime] = usePersistentState<number>(MAKWIL_KEYS.midiGlideTime, GLIDE_DEFAULT);
+
   // ¿La compuerta de FX está gateada por la nota? (alguna fuente conectada al destino 'fx').
   const fxGated = useMemo(
     () => MAKWIL_GATE_SOURCES.some((s) => !!gatePatch[gateKey(s.id, 'fx')]),
@@ -315,6 +335,13 @@ const Makwil: React.FC = () => {
   notePatchRef.current = notePatch;
   const quantRef = useRef({ scale: quantScale, root: quantRoot });
   quantRef.current = { scale: quantScale, root: quantRoot };
+  // Tiempo de glide vivo por fuente (0 = desactivado). Leído dentro de noteOn/noteOff sin recrearlos.
+  const glideRef = useRef({ keyboard: 0, midi: 0 });
+  glideRef.current = {
+    keyboard: kbdGlideEnabled ? kbdGlideTime : 0,
+    midi: midiGlideEnabled ? midiGlideTime : 0,
+  };
+  const glideFor = useCallback((s: GateSourceId): number => (s === 'midi' ? glideRef.current.midi : glideRef.current.keyboard), []);
 
   // Aplica el cuantizador de escala si la fuente está conectada a "Cuant".
   const applyQuant = useCallback((source: NoteSourceId, note: string): string => {
@@ -526,11 +553,11 @@ const Makwil: React.FC = () => {
       if (s.vcf2Type !== undefined) setVcf2Type(s.vcf2Type);
       if (s.vcf2Freq !== undefined) setVcf2Freq(s.vcf2Freq);
       if (s.vcf2Res !== undefined) setVcf2Res(s.vcf2Res);
-      if (s.vcf2Source !== undefined) setVcf2Source(s.vcf2Source);
+      if (s.vcf2Source !== undefined) setVcf2Source(toVcfSources(s.vcf2Source));
       if (s.vcf3Type !== undefined) setVcf3Type(s.vcf3Type);
       if (s.vcf3Freq !== undefined) setVcf3Freq(s.vcf3Freq);
       if (s.vcf3Res !== undefined) setVcf3Res(s.vcf3Res);
-      if (s.vcf3Source !== undefined) setVcf3Source(s.vcf3Source);
+      if (s.vcf3Source !== undefined) setVcf3Source(toVcfSources(s.vcf3Source));
       if (s.ad1Attack !== undefined) setAd1Attack(s.ad1Attack);
       if (s.ad1Decay !== undefined) setAd1Decay(s.ad1Decay);
       if (s.ad1Amount !== undefined) setAd1Amount(s.ad1Amount);
@@ -631,8 +658,8 @@ const Makwil: React.FC = () => {
       adsrCurve: 'linear', ad1Curve: 'linear', ad2Curve: 'linear', ad3Curve: 'linear', dahdCurve: 'linear',
       lfoDepth: 0, lfoRate: 1, lfo2Depth: 0, lfo2Rate: 1, lfo3Depth: 0, lfo3Rate: 1,
       filterFreq: 20000, filterRes: 1,
-      vcf2Source: 'none', vcf2Res: 1, vcf2Freq: 2000,
-      vcf3Source: 'none', vcf3Res: 1, vcf3Freq: 2000,
+      vcf2Source: [], vcf2Res: 1, vcf2Freq: 2000,
+      vcf3Source: [], vcf3Res: 1, vcf3Freq: 2000,
       reverbDecay: 1, reverbWet: 0, delayFeedback: 0,
       chorusWet: 1, chebyWet: 1,
       reverbSends: [0, 0, 0, 0, 0], delaySends: [0, 0, 0, 0, 0],
@@ -678,20 +705,21 @@ const Makwil: React.FC = () => {
   const noteOn = useCallback(
     (id: string, note: string, source: GateSourceId = 'keyboard', velocity = 1) => {
       if (heldMonoRef.current.some((h) => h.key === id)) return; // ya sonando
+      const gt = glideFor(source); // tiempo de glide de la fuente (0 = salto seco)
       // Poli (VCO1): cada nota toma una voz.
       if (polyConnected(source as NoteSourceId)) {
         const q = applyQuant(source as NoteSourceId, note);
-        engine.polyAttack(q, undefined, velocity);
+        engine.polyAttack(q, undefined, velocity, gt);
         heldPolyRef.current.set(id, q);
       }
       // Mono (VCO2-4 + envolventes): última nota / legato.
       const wasIdle = heldMonoRef.current.length === 0;
       heldMonoRef.current.push({ key: id, note, source });
-      if (wasIdle) fireGateAttack(source, note, undefined, velocity);
-      else routeNoteMono(source as NoteSourceId, note);
+      if (wasIdle) fireGateAttack(source, note, undefined, velocity, gt);
+      else routeNoteMono(source as NoteSourceId, note, undefined, gt);
       setActiveNotes((prev) => ({ ...prev, [id]: note }));
     },
-    [engine, polyConnected, applyQuant, fireGateAttack, routeNoteMono],
+    [engine, polyConnected, applyQuant, fireGateAttack, routeNoteMono, glideFor],
   );
 
   const noteOff = useCallback(
@@ -707,7 +735,7 @@ const Makwil: React.FC = () => {
         if (heldMonoRef.current.length === 0) fireGateRelease(removed.source);
         else {
           const prev = heldMonoRef.current[heldMonoRef.current.length - 1];
-          routeNoteMono(prev.source as NoteSourceId, prev.note);
+          routeNoteMono(prev.source as NoteSourceId, prev.note, undefined, glideFor(prev.source));
         }
       }
       setActiveNotes((prev) => {
@@ -716,7 +744,7 @@ const Makwil: React.FC = () => {
         return next;
       });
     },
-    [engine, fireGateRelease, routeNoteMono],
+    [engine, fireGateRelease, routeNoteMono, glideFor],
   );
 
   // --- MIDI ---
@@ -732,6 +760,43 @@ const Makwil: React.FC = () => {
 
   const octaveDown = useCallback(() => setOctave((o) => Math.max(1, o - 1)), []);
   const octaveUp = useCallback(() => setOctave((o) => Math.min(7, o + 1)), []);
+
+  // --- Grabación de la salida maestra (Tone.Recorder → archivo .webm, sin backend). ---
+  const [recording, setRecording] = useState(false);
+  const [recElapsed, setRecElapsed] = useState(0);
+  const recStartRef = useRef(0);
+  const recRafRef = useRef<number | null>(null);
+
+  const startRec = useCallback(async () => {
+    await engine.startRecording();
+    recStartRef.current = performance.now();
+    setRecElapsed(0);
+    setRecording(true);
+    const tick = () => {
+      setRecElapsed((performance.now() - recStartRef.current) / 1000);
+      recRafRef.current = requestAnimationFrame(tick);
+    };
+    recRafRef.current = requestAnimationFrame(tick);
+  }, [engine]);
+
+  const stopRec = useCallback(async () => {
+    if (recRafRef.current != null) cancelAnimationFrame(recRafRef.current);
+    recRafRef.current = null;
+    setRecording(false);
+    const blob = await engine.stopRecording();
+    if (blob.size === 0) return;
+    const ts = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '').replace(/(\d{8})(\d{6})/, '$1-$2');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `makwil-${ts}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [engine]);
+
+  useEffect(() => () => {
+    if (recRafRef.current != null) cancelAnimationFrame(recRafRef.current);
+  }, []);
 
   // Teclado de computadora (listeners una sola vez; octava viva por ref).
   useEffect(() => {
@@ -762,18 +827,29 @@ const Makwil: React.FC = () => {
     return () => document.body.classList.remove('makwil-codex');
   }, []);
 
+  // Variante de tema (oscuro/claro): clase sincronizada con el estado persistido. El cleanup
+  // limpia ambas para que Modulor no herede ninguna variante.
+  useEffect(() => {
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.body.classList.toggle('theme-light', theme === 'light');
+    return () => document.body.classList.remove('theme-dark', 'theme-light');
+  }, [theme]);
+
   return (
     <MidiLearnContext.Provider value={midiLearn}>
-    <div className="synth-container makwil-codex">
-      <h1 className={'synthTitle'}>MAKWIL</h1>
+    <div className={`synth-container makwil-codex theme-${theme}`}>
+      <div className='synth-title-preset'>
+        <h1 className={'synthTitle'}>MAKWIL</h1>
 
-      <Presets
-        presets={presets}
-        onSave={handleSavePreset}
-        onLoad={handleLoadPreset}
-        onDelete={removePreset}
-        onImport={importMany}
-      />
+        <Presets
+          presets={presets}
+          onSave={handleSavePreset}
+          onLoad={handleLoadPreset}
+          onDelete={removePreset}
+          onImport={importMany}
+        />
+      </div>
+      
 
       <div className="synth-modules" ref={oscRef}>
         <div className='vco-row big'>
@@ -880,8 +956,8 @@ const Makwil: React.FC = () => {
             setFreq={setVcf2Freq}
             res={vcf2Res}
             setRes={setVcf2Res}
-            source={vcf2Source}
-            setSource={setVcf2Source}
+            sources={vcf2Source}
+            setSources={setVcf2Source}
           />
 
           <VCF2
@@ -893,51 +969,51 @@ const Makwil: React.FC = () => {
             setFreq={setVcf3Freq}
             res={vcf3Res}
             setRes={setVcf3Res}
-            source={vcf3Source}
-            setSource={setVcf3Source}
+            sources={vcf3Source}
+            setSources={setVcf3Source}
           />
 
         </div>
         
-
-
-        <VCA
-          volume={volume}
-          setVolume={setVolume}
-          mixOsc1={mixOsc1}
-          setMixOsc1={setMixOsc1}
-          mixOsc2={mixOsc2}
-          setMixOsc2={setMixOsc2}
-          mixOsc3={mixOsc3}
-          setMixOsc3={setMixOsc3}
-          mixOsc4={mixOsc4}
-          setMixOsc4={setMixOsc4}
-          mixNoise={mixNoise}
-          setMixNoise={setMixNoise}
-          enabled={channelEnabled}
-          onToggleEnabled={onToggleChannel}
-          solos={channelSolo}
-          onToggleSolo={onToggleSolo}
-          pans={channelPan}
-          onPan={onPan}
-          reverbSends={reverbSends}
-          onReverbSend={onReverbSend}
-          reverbSendEnabled={reverbSendEnabled}
-          onToggleReverbSend={onToggleReverbSend}
-          delaySends={delaySends}
-          onDelaySend={onDelaySend}
-          delaySendEnabled={delaySendEnabled}
-          onToggleDelaySend={onToggleDelaySend}
-          chorusSends={chorusSends}
-          onChorusSend={onChorusSend}
-          chorusSendEnabled={chorusSendEnabled}
-          onToggleChorusSend={onToggleChorusSend}
-          chebySends={chebySends}
-          onChebySend={onChebySend}
-          chebySendEnabled={chebySendEnabled}
-          onToggleChebySend={onToggleChebySend}
-          channelLabels={['VCO 1', 'VCO 2', 'VCO 3', 'VCO 4', 'Ruido']}
-        />
+        <div className='mixer-row'>
+          <VCA
+            volume={volume}
+            setVolume={setVolume}
+            mixOsc1={mixOsc1}
+            setMixOsc1={setMixOsc1}
+            mixOsc2={mixOsc2}
+            setMixOsc2={setMixOsc2}
+            mixOsc3={mixOsc3}
+            setMixOsc3={setMixOsc3}
+            mixOsc4={mixOsc4}
+            setMixOsc4={setMixOsc4}
+            mixNoise={mixNoise}
+            setMixNoise={setMixNoise}
+            enabled={channelEnabled}
+            onToggleEnabled={onToggleChannel}
+            solos={channelSolo}
+            onToggleSolo={onToggleSolo}
+            pans={channelPan}
+            onPan={onPan}
+            reverbSends={reverbSends}
+            onReverbSend={onReverbSend}
+            reverbSendEnabled={reverbSendEnabled}
+            onToggleReverbSend={onToggleReverbSend}
+            delaySends={delaySends}
+            onDelaySend={onDelaySend}
+            delaySendEnabled={delaySendEnabled}
+            onToggleDelaySend={onToggleDelaySend}
+            chorusSends={chorusSends}
+            onChorusSend={onChorusSend}
+            chorusSendEnabled={chorusSendEnabled}
+            onToggleChorusSend={onToggleChorusSend}
+            chebySends={chebySends}
+            onChebySend={onChebySend}
+            chebySendEnabled={chebySendEnabled}
+            onToggleChebySend={onToggleChebySend}
+            channelLabels={['VCO 1', 'VCO 2', 'VCO 3', 'VCO 4', 'Ruido']}
+          />
+        </div>
 
         <div className="envelope-row">
           <ADSR
@@ -969,6 +1045,7 @@ const Makwil: React.FC = () => {
             setCurve={setDahdCurve}
           />
         </div>
+
         <div className="envelope-column">
           <FilterEnv
             label="AD 1"
@@ -1055,26 +1132,30 @@ const Makwil: React.FC = () => {
           <Chebyshev order={chebyOrder} setOrder={setChebyOrder} wet={chebyWet} setWet={setChebyWet} />
         </div>
 
-        <MakwilSequencer
-          configs={seqConfigs}
-          setConfigs={setSeqConfigs}
-          bpm={seqBpm}
-          setBpm={setSeqBpm}
-          running={seqRunning}
-          setRunning={setSeqRunning}
-          onReset={resetSequencer}
-          pitchSteps={pitchSteps}
-          setPitchSteps={setPitchSteps}
-          cvSteps={cvSteps}
-          setCvSteps={setCvSteps}
-          cv2Steps={cv2Steps}
-          setCv2Steps={setCv2Steps}
-          cv3Steps={cv3Steps}
-          setCv3Steps={setCv3Steps}
-          cv4Steps={cv4Steps}
-          setCv4Steps={setCv4Steps}
-          currentSteps={currentSteps}
-        />
+        <div className='seq-row'>
+          <MakwilSequencer
+            configs={seqConfigs}
+            setConfigs={setSeqConfigs}
+            bpm={seqBpm}
+            setBpm={setSeqBpm}
+            running={seqRunning}
+            setRunning={setSeqRunning}
+            onReset={resetSequencer}
+            pitchSteps={pitchSteps}
+            setPitchSteps={setPitchSteps}
+            cvSteps={cvSteps}
+            setCvSteps={setCvSteps}
+            cv2Steps={cv2Steps}
+            setCv2Steps={setCv2Steps}
+            cv3Steps={cv3Steps}
+            setCv3Steps={setCv3Steps}
+            cv4Steps={cv4Steps}
+            setCv4Steps={setCv4Steps}
+            currentSteps={currentSteps}
+          />
+        </div>
+
+        
         
         <div className="matrix-row">
           <PatchMatrix
@@ -1091,25 +1172,31 @@ const Makwil: React.FC = () => {
             noteSources={MAKWIL_NOTE_SOURCES}
             noteDests={MAKWIL_NOTE_DESTS}
           />
+          <div className='midi-column'>
+            <Midi
+              supported={midi.supported}
+              enabled={midi.enabled}
+              deviceNames={midi.deviceNames}
+              activity={midi.activity}
+              onEnable={midi.enable}
+              learnMode={midiLearn.learnMode}
+              onToggleLearnMode={midiLearn.toggleLearnMode}
+              assignments={midiLearn.assignments}
+              armed={midiLearn.armedId != null}
+              onClearAssignment={midiLearn.clearAssignment}
+              quantScale={quantScale}
+              setQuantScale={setQuantScale}
+              quantRoot={quantRoot}
+              setQuantRoot={setQuantRoot}
+              glideEnabled={midiGlideEnabled}
+              setGlideEnabled={setMidiGlideEnabled}
+              glideTime={midiGlideTime}
+              setGlideTime={setMidiGlideTime}
+            />
 
-          <Midi
-            supported={midi.supported}
-            enabled={midi.enabled}
-            deviceNames={midi.deviceNames}
-            activity={midi.activity}
-            onEnable={midi.enable}
-            learnMode={midiLearn.learnMode}
-            onToggleLearnMode={midiLearn.toggleLearnMode}
-            assignments={midiLearn.assignments}
-            armed={midiLearn.armedId != null}
-            onClearAssignment={midiLearn.clearAssignment}
-            quantScale={quantScale}
-            setQuantScale={setQuantScale}
-            quantRoot={quantRoot}
-            setQuantRoot={setQuantRoot}
-          />
+            <Recorder recording={recording} elapsed={recElapsed} onStart={startRec} onStop={stopRec} />
+          </div>
         </div>
-
 
       </div>
 
@@ -1120,6 +1207,10 @@ const Makwil: React.FC = () => {
         noteOn={noteOn}
         noteOff={noteOff}
         activeNotes={activeNotes}
+        glideEnabled={kbdGlideEnabled}
+        setGlideEnabled={setKbdGlideEnabled}
+        glideTime={kbdGlideTime}
+        setGlideTime={setKbdGlideTime}
       />
 
       <BottomNav
@@ -1127,6 +1218,9 @@ const Makwil: React.FC = () => {
         onToggleChannel={onToggleChannel}
         sections={MAKWIL_MODULE_SECTIONS}
         voiceLabels={['V1', 'V2', 'V3', 'V4', 'N']}
+        cutoff={filterFreq}
+        setCutoff={setFilterFreq}
+        cutoffScale={AUDIO_FREQ_SCALE}
       />
     </div>
     </MidiLearnContext.Provider>

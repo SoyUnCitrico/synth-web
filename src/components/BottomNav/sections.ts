@@ -4,6 +4,8 @@
 export interface ModuleSection {
   id: string;
   label: string;
+  /** Familia de color del módulo (para colorear el ítem del menú del nav inferior). */
+  family?: 'red' | 'amber' | 'jade' | 'blue' | 'neutral';
 }
 
 export const MODULE_SECTIONS: ModuleSection[] = [

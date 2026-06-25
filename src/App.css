@@ -1,6 +1,7 @@
 .synth-container {
-  max-width: 1400px;
+  max-width: 1440px;
   min-width: 360px;
+  width: 100%;
   margin: 0 auto;
   /* padding-bottom extra para que el nav inferior fijo no tape el último módulo. */
   padding: 1.25rem 0 5rem;
@@ -11,12 +12,25 @@
   place-items: center;
 }
 
+.synth-title-preset {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1440px;
+  h1 {
+    min-height: 100px;
+    margin: 0.5rem;
+  }
+}
+
 .synth-modules {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1440px;
   margin-bottom: 2rem;
   padding: 0 0.5rem;
 }
@@ -32,9 +46,10 @@
 .matrix-row {
   grid-column: 1 / -1;
   display: grid;
+  flex: 1 1 100%;
+  max-width: 1440px;
   grid-template-columns: 2fr 1fr;
-  gap: 1rem;
-  align-items: start;
+  gap: 0.5rem;
 }
 .matrix-row > .module {
   margin: 0;
@@ -126,7 +141,7 @@
 .knob-wrap,
 .fader { position: relative; }
 
-.filter-row {
+.filter-row, .mixer-row, .seq-row {
   grid-column: 1 / -1;
   flex: 1 1 100%;
   width: 100%;
@@ -154,6 +169,7 @@
   justify-content: center;
   align-items: stretch;
 }
+
 .envelope-row .module {
   flex: 1 1 220px;
 }
@@ -164,11 +180,20 @@
   height: 108px;
 }
 
+.midi-column {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .fx-column {
   display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  margin-left: -1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem 1rem;
   width: 100%;
+  min-width: 0;
 }
 
 .fx-column .module {
@@ -176,6 +201,9 @@
   max-width: 340px;
 }
 
+.lfo-column {
+  margin: auto;
+}
 
 .module-big {
   position: relative;
@@ -183,7 +211,7 @@
   margin: 0.6rem auto;
   padding: 1.1rem;
   width: 96%;
-  max-width: 1200px;
+  max-width: 1400px;
   border: 1px solid #000;
   border-radius: 10px;
   background: linear-gradient(180deg, var(--panel-hi) 0, var(--panel-mid) 7%, var(--panel-mid) 93%, var(--panel-lo) 100%);
@@ -365,6 +393,8 @@
 }
 .fader-name.master {
   color: var(--led-red);
+  text-shadow: -1px 1px 1px var(--groove);
+  font-size: 0.95rem;
 }
 .fader-value {
   font-family: var(--font-mono);
@@ -548,17 +578,55 @@ input:focus + .slider {
   .synth-modules {
     grid-template-columns: 1fr;
   }
+
+  /* Soltar el ancho mínimo de la faceplate: con width:100% cada módulo ocupa toda la fila,
+     así las filas flex (vco-row, filter-row, envelope-row) caen a UNA sola columna y nada
+     desborda el viewport angosto. */
+  .synth-modules .module {
+    min-width: 0;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  /* Filas flex: cada módulo a ancho completo (una columna). */
+  .vco-row .module,
+  .filter-row .module {
+    flex: 1 1 100%;
+  }
+
+  .synth-title-preset {
+
+    flex-direction: column;
+  }
   /* La matriz se va arriba y el MIDI debajo (una sola columna). */
   .matrix-row {
     grid-template-columns: 1fr;
-  }
-  .fx-column, .lfo-column, .envelope-column {
-    grid-template-columns: 1fr;
-    padding-right: 1rem;
-    
+    margin: 0.5rem;
   }
 
-  .fx-column .module, .lfo-column .module, .envelope-column .module{
+  .lfo-column {
+    min-width: 100%;
+    margin: -1rem 2rem 1rem;
+  }
+  
+  .fx-column {
+    grid-template-columns: 1fr;
+    place-items: center;
+    min-width: 100%;
+    width: 100%;
+    margin: -1rem 2rem 1rem;
+  }
+
+  .fx-column .module {
+    max-width: 98%;
+  }
+
+  .fx-column, .lfo-column, .envelope-column {
+    grid-template-columns: 1fr;
+    /* padding-right: 1rem; */
+    margin-left: 0.5rem;
+  }
+
+  .module{
     min-width: 100%;
   }
   /* Módulos pequeños: uno por fila también (no 2-up). */
@@ -571,10 +639,3 @@ input:focus + .slider {
     flex-direction: column;
     gap: 1.25rem;
   }
-  .module-big {
-    max-width: 700px;
-  }
-  .module-big svg {
-    max-width: 700px;
-  }
-}

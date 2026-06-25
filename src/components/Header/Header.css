@@ -121,6 +121,29 @@
     font-size: 0.85rem;
 }
 
+/* El toggle de tema es un <button>: anula el chrome global de botón para que se vea como
+   un item más del menú (mismo padding/tipografía que los <a>). */
+.header-menu-item.theme-toggle {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    font-weight: 400;
+}
+.header-menu-item.theme-toggle:hover {
+    border-color: transparent;
+    background: rgba(25, 229, 255, 0.10);
+    color: var(--cyan);
+}
+.header-menu-item.theme-toggle:focus,
+.header-menu-item.theme-toggle:focus-visible {
+    outline: none;
+}
+.header-menu-item .theme-mark {
+    font-size: 0.95rem;
+    color: var(--amber-soft);
+}
+
 /* ── Transporte del secuenciador en el header ── */
 .transport-container {
     display: flex;
@@ -187,7 +210,7 @@
     cursor: pointer;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 768px) {
     .hdr-bpm input[type="range"] {
         width: 70px;
     }

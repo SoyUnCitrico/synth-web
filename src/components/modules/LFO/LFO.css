@@ -1,3 +1,8 @@
+.lfo-module {
+    max-width: 420px;
+    margin: 0.5rem;
+}
+
 .lfo-controls {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -10,4 +15,10 @@
     top: 0.5rem;
     text-align: center;
     color: var(--greca-ink);
+}
+
+@media (max-width: 768px) {
+    .lfo-module {
+        max-width: 99%;
+    }
 }

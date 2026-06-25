@@ -7,6 +7,7 @@ import About from './pages/About';
 import Header from './components/Header/Header';
 import FlowerField from './components/FlowerField/FlowerField';
 import { TransportProvider } from './audio/sequencer/transport';
+import { MakwilThemeProvider } from './theme/MakwilThemeContext';
 
 // Etiqueta del header por ruta.
 const LABELS: Record<string, string> = {
@@ -22,10 +23,12 @@ const AppShell: React.FC = () => {
     const label = LABELS[pathname] ?? 'MAKWIL';
     // Fondo pleno en el landing About; sutil detrás del sinte.
     const flowerVariant = pathname === '/about' ? 'full' : 'subtle';
+    // El toggle de tema (códice claro/oscuro) solo aplica a Makwil (ruta '/').
+    const isMakwil = pathname === '/';
     return (
         <>
             <FlowerField variant={flowerVariant} />
-            <Header label={label} />
+            <Header label={label} showThemeToggle={isMakwil} />
             <Routes>
                 <Route path="/modulor" element={<Modulor/>}/>
                 <Route path="/about" element={<About/>}/>
@@ -40,9 +43,11 @@ const AppShell: React.FC = () => {
 const App : React.FC = () => {
     return (
         <Router>
-            <TransportProvider>
-                <AppShell />
-            </TransportProvider>
+            <MakwilThemeProvider>
+                <TransportProvider>
+                    <AppShell />
+                </TransportProvider>
+            </MakwilThemeProvider>
         </Router>
     )
 

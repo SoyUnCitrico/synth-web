@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from  'react';
 import { Link } from 'react-router-dom';
 import * as Tone from 'tone';
 import { useTransport } from '../../audio/sequencer/transport';
+import { useMakwilTheme } from '../../theme/MakwilThemeContext';
 // import LedDisplay from '../LedDisplay/LedDisplay';
 import logoIcon from '../../assets/modulorLogo.svg';
 import './Header.css'
@@ -11,10 +12,13 @@ import './Header.css'
 // El logo es un menú desplegable de navegación entre páginas.
 interface HeaderProps {
   label?: string;
+  /** Muestra el toggle de tema (claro/oscuro). Solo aplica en Makwil. */
+  showThemeToggle?: boolean;
 }
 
-const Header : React.FC<HeaderProps> = ({label = "MAKWIL"}) => {
+const Header : React.FC<HeaderProps> = ({label = "MAKWIL", showThemeToggle = false}) => {
     const { running, setRunning, reset, resetAll } = useTransport();
+    const { theme, toggle: toggleTheme } = useMakwilTheme();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -79,6 +83,17 @@ const Header : React.FC<HeaderProps> = ({label = "MAKWIL"}) => {
                             <Link to="/about" role="menuitem" className="header-menu-item" onClick={() => setMenuOpen(false)}>
                                 About
                             </Link>
+                            {showThemeToggle && (
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="header-menu-item theme-toggle"
+                                    onClick={() => { toggleTheme(); setMenuOpen(false); }}
+                                >
+                                    Tema: {theme === 'dark' ? 'Oscuro' : 'Claro'}
+                                    <span className="theme-mark" aria-hidden="true">{theme === 'dark' ? '☾' : '☀'}</span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

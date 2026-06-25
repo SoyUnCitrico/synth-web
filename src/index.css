@@ -60,7 +60,7 @@ a:hover {
 }
 
 body {
-  min-width: 320px;
+  min-width: 520px;
   min-height: 100vh;
   color: var(--ink);
   /* Plano de consola: viñeta + rejilla técnica tenue + halos de neón */

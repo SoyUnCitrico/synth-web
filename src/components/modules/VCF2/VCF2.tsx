@@ -11,8 +11,15 @@ interface VCF2Props {
   setFreq: (f: number) => void;
   res: number;
   setRes: (r: number) => void;
-  source: Vcf2Source;
-  setSource: (s: Vcf2Source) => void;
+  /** Selección única (Modulor). Omitir si se usa multi-fuente. */
+  source?: Vcf2Source;
+  setSource?: (s: Vcf2Source) => void;
+  /**
+   * Multi-fuente (Makwil): si se pasan, el patch admite VARIAS voces a la vez por el filtro.
+   * Tienen prioridad sobre `source`/`setSource` (que se mantienen para Modulor, selección única).
+   */
+  sources?: Exclude<Vcf2Source, 'none'>[];
+  setSources?: (s: Exclude<Vcf2Source, 'none'>[]) => void;
   /** Título del módulo (por defecto "VCF 2"). Permite reusar el componente como VCF 3. */
   title?: string;
   /** Prefijo de ids estables (por defecto "vcf2"); usado para inputs y MIDI-learn. */
@@ -42,11 +49,24 @@ export const VCF2: React.FC<VCF2Props> = ({
   setFreq,
   res,
   setRes,
-  source,
+  source = 'none',
   setSource,
+  sources,
+  setSources,
   title = 'VCF 2',
   idPrefix = 'vcf2',
 }) => {
+  // Multi-fuente activa si se proveen sources/setSources (Makwil); si no, selección única (Modulor).
+  const multi = !!setSources;
+  const isOn = (v: Exclude<Vcf2Source, 'none'>) => (multi ? (sources ?? []).includes(v) : source === v);
+  const toggle = (v: Exclude<Vcf2Source, 'none'>) => {
+    if (multi) {
+      const cur = sources ?? [];
+      setSources!(cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+    } else {
+      setSource?.(source === v ? 'none' : v);
+    }
+  };
   return (
     <div className="module vcf2-module" data-filter-type={type}>
       <div className="module-header">
@@ -91,16 +111,16 @@ export const VCF2: React.FC<VCF2Props> = ({
           />
         </div>
 
-        {/* Patch de routeo: selecciona la voz fuente (ninguna o sólo una a la vez). */}
+        {/* Patch de routeo: selecciona la(s) voz(ces) fuente. En Makwil admite varias a la vez. */}
         <div className="control-group">
           <label>Fuente (patch)</label>
           <div className="checkbox-group vcf2-patch">
             {SOURCES.map((s) => (
-              <label key={s.value} className="checkbox-option" title={`Enrutar ${s.label} por el VCF 2`}>
+              <label key={s.value} className="checkbox-option" title={`Enrutar ${s.label} por ${title}`}>
                 <input
                   type="checkbox"
-                  checked={source === s.value}
-                  onChange={() => setSource(source === s.value ? 'none' : s.value)}
+                  checked={isOn(s.value)}
+                  onChange={() => toggle(s.value)}
                 />
                 {s.label}
               </label>

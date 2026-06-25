@@ -114,7 +114,7 @@ const Knob: React.FC<KnobProps> = ({
 
   return (
     <div className={`knob-wrap ${disabled ? 'disabled' : ''} ${armed ? 'midi-armed' : ''} ${cc != null ? 'midi-assigned' : ''}`}>
-      <span className="knob-name">{label}</span>
+    {label != "" ?  <span className="knob-name">{label}</span> :  <> </> }
       <div
         id={id}
         className="knob"

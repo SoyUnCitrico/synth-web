@@ -1,5 +1,7 @@
 import React from 'react';
 import LedDisplay from '../../LedDisplay/LedDisplay';
+import Knob from '../../Knob/Knob';
+import { GLIDE_MIN, GLIDE_MAX, GLIDE_DEFAULT } from '../../../audio/makwil/sequencerTypes';
 import { WHITE_KEYS, BLACK_KEYS, type KeyDef } from './layout';
 import './Keyboard.css';
 
@@ -12,6 +14,15 @@ interface KeyboardProps {
   noteOff: (id: string) => void;
   /** Notas activas por `id` (sincroniza el resaltado con el teclado físico). */
   activeNotes: Record<string, string>;
+  /**
+   * Glide (portamento) del teclado: desliza el pitch entre notas (VCO2/3/4). Opcional —
+   * si no se pasan estas props (p. ej. en Modulor) el control de glide no se muestra.
+   */
+  glideEnabled?: boolean;
+  setGlideEnabled?: (on: boolean) => void;
+  /** Tiempo de glide en segundos (GLIDE_MIN..GLIDE_MAX). */
+  glideTime?: number;
+  setGlideTime?: (s: number) => void;
 }
 
 const keycapLabel = (k: string): string => (k === 'ñ' ? 'Ñ' : k.toUpperCase());
@@ -29,6 +40,10 @@ const Keyboard: React.FC<KeyboardProps> = ({
   noteOn,
   noteOff,
   activeNotes,
+  glideEnabled,
+  setGlideEnabled,
+  glideTime,
+  setGlideTime,
 }) => {
   const whiteCount = WHITE_KEYS.length;
   const noteFull = (k: KeyDef) => `${k.note}${octave + k.octaveOffset}`;
@@ -81,6 +96,33 @@ const Keyboard: React.FC<KeyboardProps> = ({
           value={Object.values(activeNotes).join(' ') || '----'}
           chars={12}
         />
+        {/* Glide (portamento): desliza el pitch entre notas en los VCO mono (2/3/4). */}
+        {setGlideEnabled && setGlideTime && (
+          <div className="kbd-glide">
+            <div className="toggle-switch">
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={glideEnabled ?? false}
+                  onChange={(e) => setGlideEnabled(e.target.checked)}
+                  aria-label="Activar/desactivar glide del teclado"
+                />
+                <span className="slider"></span>
+              </label>
+              <span className="toggle-label">Glide</span>
+            </div>
+            <Knob
+              label="Glide"
+              value={glideTime ?? GLIDE_DEFAULT}
+              min={GLIDE_MIN}
+              max={GLIDE_MAX}
+              step={0.005}
+              display={`${((glideTime ?? GLIDE_DEFAULT) * 1000).toFixed(0)} ms`}
+              onChange={setGlideTime}
+              disabled={!(glideEnabled ?? false)}
+            />
+          </div>
+        )}
       </div>
 
       <div className="kbd-keys">

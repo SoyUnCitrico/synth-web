@@ -41,11 +41,28 @@
 }
 
 /* Perillas de afinación (frecuencia base + fino) lado a lado. */
-.vco-tune-knobs {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+.vco-knobs {
+  max-width: 96%;
+  margin: 0 auto - 0.5rem;
+    display: flex;
+    justify-content: space-evenly;
+    gap: 1rem;
+   
+  .vco-tune-knobs-box {
+    display: grid;
+    grid-template-columns: 1fr 5fr;
+    max-width: 240px;
+     label {
+      width: 8px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      word-wrap: break-word;
+    }
+    .knob-row {
+      display: flex;
+      gap: 1rem;
+    }
+  }
 }
 
 /* Icono de forma de onda dentro del selector (checkbox). */

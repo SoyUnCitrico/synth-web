@@ -126,7 +126,7 @@ const PatchMatrix: React.FC<PatchMatrixProps> = ({
   return (
     <div className="module patch-module">
       <div className="module-header">
-        <h2>Matriz de modulación</h2>
+        <h2>MOD MATRIX</h2>
       </div>
       <div className="module-controls">
         <MatrixTable

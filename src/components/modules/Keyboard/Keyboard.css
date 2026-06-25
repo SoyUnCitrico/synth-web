@@ -25,6 +25,13 @@
   flex-wrap: wrap;
 }
 
+/* Glide (portamento): toggle + perilla de velocidad. */
+.kbd-glide {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
 /* Control de octava (botones + lectura). */
 .kbd-octave {
   display: flex;
@@ -135,7 +142,7 @@
 }
 
 /* Móvil: teclas más altas para dar blanco al dedo. */
-@media (max-width: 560px) {
+@media (max-width: 768px) {
   .kbd-keys {
     height: 180px;
   }

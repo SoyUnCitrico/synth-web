@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import { useTransport } from '../../audio/sequencer/transport';
 import { MODULE_SECTIONS, type ModuleSection } from './sections';
+import Knob from '../Knob/Knob';
+import { type Scale } from '../../utils/scale';
 import logoIcon from '../../assets/modulorLogo.svg';
 import './BottomNav.css';
 
@@ -22,6 +24,13 @@ interface BottomNavProps {
   sections?: ModuleSection[];
   /** Etiquetas de los chips de voz. Por defecto V1-V3 + FM + N. */
   voiceLabels?: string[];
+  /**
+   * Cutoff del VCF1 (filtro global). Opcional — si se pasan estas props (Makwil) se muestra una
+   * perilla en la barra que controla la MISMA instancia de estado que la perilla del módulo VCF.
+   */
+  cutoff?: number;
+  setCutoff?: (hz: number) => void;
+  cutoffScale?: Scale;
 }
 
 /**
@@ -40,6 +49,9 @@ const BottomNav: React.FC<BottomNavProps> = ({
   onToggleDrumEnabled,
   sections,
   voiceLabels,
+  cutoff,
+  setCutoff,
+  cutoffScale,
 }) => {
   const { running, setRunning, reset } = useTransport();
   const moduleSections = sections ?? MODULE_SECTIONS;
@@ -96,7 +108,7 @@ const BottomNav: React.FC<BottomNavProps> = ({
           <ul className="bottom-nav-menu">
             {moduleSections.map((s) => (
               <li key={s.id}>
-                <button onClick={() => goTo(s.id)}>{s.label}</button>
+                <button className={`nav-fam-${s.family ?? 'neutral'}`} onClick={() => goTo(s.id)}>{s.label}</button>
               </li>
             ))}
           </ul>
@@ -138,6 +150,20 @@ const BottomNav: React.FC<BottomNavProps> = ({
       </div>
 
       <div className="bottom-nav-right">
+        {/* Cutoff del VCF1: misma instancia de estado que la perilla del módulo VCF. */}
+        {setCutoff && (
+          <div className="bottom-nav-cutoff">
+            <Knob
+              label="Cut"
+              value={cutoff ?? 20000}
+              scale={cutoffScale}
+              step={1}
+              // display={`${(cutoff ?? 20000).toFixed(0)} Hz`}
+              display={''}
+              onChange={setCutoff}
+            />
+          </div>
+        )}
         <button className="hdr-btn hdr-btn-warning" onClick={reset} title="Reiniciar secuencia">
           ⟲ RST
         </button>

@@ -1,0 +1,51 @@
+.recorder-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rec-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text, #cfd8d8);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.rec-btn:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.rec-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #e74c3c;
+  box-shadow: 0 0 4px rgba(231, 76, 60, 0.6);
+}
+
+.rec-btn.recording {
+  border-color: #e74c3c;
+  color: #ffb3aa;
+}
+
+.rec-btn.recording .rec-dot {
+  animation: rec-blink 1s steps(2, start) infinite;
+}
+
+@keyframes rec-blink {
+  to { opacity: 0.2; }
+}
+
+.rec-time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--text-dim, #8fa3a3);
+}

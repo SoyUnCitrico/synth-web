@@ -66,6 +66,27 @@
   padding: 0.4rem 0.5rem;
   margin-bottom: 0.6rem;
 }
+/* Glide (portamento) de la entrada MIDI: toggle + perilla, debajo del cuantizador. */
+.midi-glide {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.midi-glide-title {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 0.35rem;
+}
+.midi-glide-ctl {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
 .midi-quant-title {
   display: block;
   font-family: var(--font-mono);

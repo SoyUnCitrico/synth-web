@@ -10,11 +10,23 @@
    el color sale de `background: var(--accent)`. Sin gradientes en las grecas.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* ── Tokens: obsidiana cálida (módulos) + PALETA NUEVA solo Makwil ──
-   Se heredan por todos los descendientes del body, incluido el Header. NO se
-   tocan los tokens de :root (index.css) → Modulor sigue cian/magenta. */
+/* ── Tokens: PALETA compartida (Makwil) + SUPERFICIES por variante (claro/oscuro) ──
+   La paleta de familia (rojo/azul/amarillo/verde) es común a ambos temas; las superficies
+   (paneles, tinta, greca) cambian con la variante. Se heredan por todos los descendientes
+   del body, incluido el Header. NO se tocan los tokens de :root (index.css) → Modulor sigue
+   cian/magenta. */
 body.makwil-codex {
-  /* Superficies de obsidiana cálida (los módulos siguen oscuros). */
+  /* Paleta Makwil: rojo principal · amarillo+verde secundarios · azul destacado. */
+  --magenta: #FE0000;     /* rojo — principal (reemplaza el morado) */
+  --cyan: #016DCD;        /* azul — destacado */
+  --cyan-deep: #014e93;
+  --amber: #FECE01;       /* amarillo — secundario */
+  --amber-soft: #FFE066;
+  --led-green: #056E04;   /* verde — secundario */
+}
+
+/* ── Tema CLARO: superficies de obsidiana cálida sobre pergamino claro (aspecto original). */
+body.makwil-codex.theme-light {
   --panel-hi: #2c2318;
   --panel-mid: #17120d;
   --panel-lo: #0b0807;
@@ -23,24 +35,32 @@ body.makwil-codex {
   --ink: #e9dcc0;
   --ink-dim: #a7926d;
 
-  /* Paleta Makwil: rojo principal · amarillo+verde secundarios · azul destacado. */
-  --magenta: #FE0000;     /* rojo — principal (reemplaza el morado) */
-  --cyan: #016DCD;        /* azul — destacado */
-  --cyan-deep: #014e93;
-  --amber: #FECE01;       /* amarillo — secundario */
-  --amber-soft: #FFE066;
-  --led-green: #056E04;   /* verde — secundario */
-
   /* Tinta de greca/glifo de los marcos (oro viejo de códice). */
   --greca-ink: #c79a4b;
   --greca-glow: rgba(199, 154, 75, 0.5);
 }
 
-/* ── Fondo: papel viejo y arrugado, claro (sin tonos oscuros) ──
+/* ── Tema OSCURO (DEFAULT): superficies de pergamino dorado-café sobre fondo negro obsidiana.
+   Tinta sepia oscura para legibilidad sobre el pergamino claro de los módulos. */
+body.makwil-codex.theme-dark {
+  --panel-hi: #c2a158bb;   /* canto alto del pergamino (luz) — apagado, encaja con el fondo negro */
+  --panel-mid: #a3803ebb;  /* cara dorado-café */
+  --panel-lo: #7c5f2ebb;   /* canto bajo (sombra) */
+  --groove: #2c2012;     /* socket cálido oscuro (huecos hundidos: inputs, checkboxes, medidor) */
+  --line: #6e4f22;
+  --ink: #2a1c0d;        /* tinta oscura (texto sobre pergamino) */
+  --ink-dim: #5c4422;
+
+  /* Greca/glifo en tinta sepia oscura (contrasta sobre el pergamino dorado). */
+  --greca-ink: #4a3414;
+  --greca-glow: rgba(74, 52, 20, 0.45);
+}
+
+/* ── Fondo TEMA CLARO: papel viejo y arrugado, claro (sin tonos oscuros) ──
    Base clara + arrugas (feTurbulence baja frecuencia) y grano (alta) inline,
    fundidos con `multiply`. Sin viñeta quemada ni manchas marrones oscuras. */
-body.makwil-codex {
-  background-color: #e7d6ad;
+body.makwil-codex.theme-light {
+  background-color: #e7d6ada9;
   background-image:
     /* grano fino de papel (multiply, muy tenue) */
     url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='200'%20height='200'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.85'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3CfeFuncG%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3CfeFuncB%20type='linear'%20slope='0.12'%20intercept='0.85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='200'%20height='200'%20filter='url(%23g)'/%3E%3C/svg%3E"),
@@ -52,6 +72,18 @@ body.makwil-codex {
     linear-gradient(180deg, #ece0c0 0%, #e6d6ac 55%, #ddcc9e 100%);
   background-size: 200px 200px, 420px 420px, auto, auto;
   background-blend-mode: multiply, multiply, normal, normal;
+  background-attachment: fixed;
+}
+
+/* ── Fondo TEMA OSCURO: negro obsidiana con halos cálidos muy tenues ──
+   Sin textura de papel en el fondo (la textura de pergamino vive en los módulos). */
+body.makwil-codex.theme-dark {
+  background-color: #0b0907;
+  background-image:
+    radial-gradient(900px 600px at 80% 8%, rgba(120, 86, 38, 0.12), transparent 60%),
+    radial-gradient(720px 520px at 10% 95%, rgba(1, 109, 205, 0.06), transparent 60%),
+    linear-gradient(180deg, #100c08 0%, #0a0806 60%, #060403 100%);
+  background-size: auto, auto, auto;
   background-attachment: fixed;
 }
 
@@ -75,15 +107,24 @@ body.makwil-codex {
 }
 /* .makwil-codex::before { top: 0; } */
 .makwil-codex::after { bottom: 3.5rem; transform: scaleY(-1); }
+/* Tema oscuro: la greca de página pasa a oro viejo para resaltar sobre el fondo negro. */
+.makwil-codex.theme-dark::after { background: rgba(199, 154, 75, 0.5); }
 
 /* ── Título: tinta de códice grabada con halo neón de la paleta ── */
-.makwil-codex .synthTitle {
-
+.makwil-codex.theme-light .synthTitle {
   color: #3a2410;
   text-shadow:
     0 1px 0 rgba(255, 240, 210, 0.5),
     0 0 14px rgba(1, 109, 205, 0.35),
     0 0 26px rgba(254, 0, 0, 0.22);
+}
+/* Tema oscuro: tinta clara (crema) con halo neón sobre el fondo negro. */
+.makwil-codex.theme-dark .synthTitle {
+  color: #f0dcae;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    0 0 14px rgba(1, 109, 205, 0.45),
+    0 0 26px rgba(254, 0, 0, 0.28);
 }
 .makwil-codex .synthTitle::after, .makwil-codex .synthTitle::before {
   content: "";
@@ -95,10 +136,16 @@ body.makwil-codex {
   -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 14px;
           mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='14'%20viewBox='0%200%2024%2014'%3E%3Cpath%20d='M0,11H24M3,11V4H13V8H7V6H11'%20fill='none'%20stroke='black'%20stroke-width='2'/%3E%3C/svg%3E") repeat-x center / 24px 14px;
 }
+/* Tema oscuro: la greca del título pasa a oro viejo para verse sobre el fondo negro. */
+.makwil-codex.theme-dark .synthTitle::after,
+.makwil-codex.theme-dark .synthTitle::before {
+  background: #c79a4b;
+}
 
 /* ════════════════════════════════════════════════════════════════════════
    PALETA POR FAMILIA DE MÓDULO (overrides de --accent/--glow, ganan por scope)
    Fuentes→rojo · Filtros→amarillo · Envolventes+Mixer→verde · Mod/FX/Seq→azul
+   En tema OSCURO los módulos son pergamino CLARO → se oscurecen los acentos (más abajo).
    ════════════════════════════════════════════════════════════════════════ */
 .makwil-codex .vco-module,
 .makwil-codex .noise-module {
@@ -114,8 +161,8 @@ body.makwil-codex {
 .makwil-codex .filterenv-module,
 .makwil-codex .dahd-module,
 .makwil-codex .vca-module {
-  --accent: #19A516;   /* verde con más brillo (legible sobre la obsidiana) */
-  --glow: rgba(25, 165, 22, 0.55);
+  --accent: #16c184;   /* jade brillante (legible sobre la obsidiana) */
+  --glow: rgba(22, 193, 132, 0.55);
 }
 .makwil-codex .lfo-module,
 .makwil-codex .reverb-module,
@@ -127,6 +174,37 @@ body.makwil-codex {
   --accent: #016DCD;
   --glow: rgba(1, 109, 205, 0.45);
 }
+
+/* Tema OSCURO: acentos por familia OSCURECIDOS y saturados para contrastar sobre el
+   pergamino dorado claro de los módulos (ganan por especificidad: 3 clases > 2). */
+.makwil-codex.theme-dark .vco-module,
+.makwil-codex.theme-dark .noise-module {
+  --accent: #d62828;       /* rojo brillante (destaca sobre el pergamino) */
+  --glow: rgba(214, 40, 40, 0.45);
+}
+.makwil-codex.theme-dark .vcf-module,
+.makwil-codex.theme-dark .vcf2-module {
+  --accent: #795d0f;       /* ocre oscuro (el amarillo no lee sobre pergamino) */
+  --glow: rgba(121, 86, 15, 0.4);
+}
+.makwil-codex.theme-dark .adsr-module,
+.makwil-codex.theme-dark .filterenv-module,
+.makwil-codex.theme-dark .dahd-module,
+.makwil-codex.theme-dark .vca-module {
+  --accent: #0e9d68;       /* jade (más brillante que el bosque, lee sobre el pergamino) */
+  --glow: rgba(14, 157, 104, 0.4);
+}
+.makwil-codex.theme-dark .lfo-module,
+.makwil-codex.theme-dark .reverb-module,
+.makwil-codex.theme-dark .delay-module,
+.makwil-codex.theme-dark .chorus-module,
+.makwil-codex.theme-dark .cheby-module,
+.makwil-codex.theme-dark .patch-module,
+.makwil-codex.theme-dark .sequencer-module {
+  --accent: #2766dd;       /* azul rey brillante (gates/pines/grecas resaltan) */
+  --glow: rgba(39, 102, 221, 0.5);
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    MÓDULOS: faceplate de obsidiana + grecas y glifos en el color del módulo
    ════════════════════════════════════════════════════════════════════════ */
@@ -146,6 +224,36 @@ body.makwil-codex {
     0 0 14px var(--glow);
   padding-top: 1.5rem;
   padding-bottom: 1.7rem;
+}
+
+/* Tema OSCURO: el faceplate pasa a PERGAMINO dorado-café con textura.
+   Anti-mosaico: tile de arrugas grande (700px, mayor que el ancho del módulo) +
+   stitchTiles='stitch' (bordes continuos) + feComponentTransfer de bajo contraste
+   (rango ~0.39..0.61, centrado en gris medio) + blend `soft-light` para fundir la
+   textura sobre el dorado sin que se note la repetición. El grano fino (256px, alta
+   frecuencia) no muestra patrón perceptible. */
+.makwil-codex.theme-dark .module {
+  background:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='256'%20height='256'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.9'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type='linear'%20slope='0.12'%20intercept='0.44'/%3E%3CfeFuncG%20type='linear'%20slope='0.12'%20intercept='0.44'/%3E%3CfeFuncB%20type='linear'%20slope='0.12'%20intercept='0.44'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='256'%20height='256'%20filter='url(%23g)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='700'%20height='700'%3E%3Cfilter%20id='p'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.012'%20numOctaves='4'%20seed='8'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type='linear'%20slope='0.22'%20intercept='0.39'/%3E%3CfeFuncG%20type='linear'%20slope='0.22'%20intercept='0.39'/%3E%3CfeFuncB%20type='linear'%20slope='0.22'%20intercept='0.39'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='700'%20height='700'%20filter='url(%23p)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, var(--panel-hi) 0, var(--panel-mid) 12%, var(--panel-mid) 88%, var(--panel-lo) 100%);
+  background-size: 256px 256px, 700px 700px, auto;
+  background-blend-mode: soft-light, soft-light, normal;
+  border: 1px solid #6e4f22;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 214, 0.4),
+    inset 0 -14px 26px rgba(90, 60, 20, 0.3),
+    0 0 0 1px rgba(40, 26, 10, 0.45),
+    0 10px 22px rgba(0, 0, 0, 0.55),
+    0 0 16px var(--glow);
+}
+
+/* Tema oscuro: las grecas/glifos (tinta sepia oscura) suben de opacidad y pierden el glow
+   —innecesario sobre el pergamino claro— para leerse con nitidez. */
+.makwil-codex.theme-dark .module::before,
+.makwil-codex.theme-dark .module::after {
+  opacity: 0.9;
+  filter: none;
 }
 
 /* Greca SUPERIOR + glifos de las esquinas superiores. Todo en var(--accent)
@@ -208,13 +316,19 @@ body.makwil-codex {
     radial-gradient(circle at 50% 40%, #1a130b, #0a0705),
     repeating-linear-gradient(45deg, rgba(199, 154, 75, 0.10) 0 2px, transparent 2px 6px);
 }
+/* Tema oscuro: la rejilla de la matriz va en sepia oscuro para verse sobre el pergamino. */
+.makwil-codex.theme-dark .patch-matrix th,
+.makwil-codex.theme-dark .patch-matrix td {
+  border-color: rgba(74, 52, 20, 0.35);
+}
 
 /* ════════════════════════════════════════════════════════════════════════
-   HEADER y BOTTOM NAV: pergamino (sin fondo oscuro) + greca sólida tenue
+   HEADER y BOTTOM NAV: chrome por variante (pergamino claro u obsidiana) +
+   greca azul sólida (compartida por ambos temas)
    ════════════════════════════════════════════════════════════════════════ */
 
-/* Header en papel claro + texto a tinta oscura legible. */
-body.makwil-codex .header-nav {
+/* TEMA CLARO — header en papel claro + texto a tinta oscura legible. */
+body.makwil-codex.theme-light .header-nav {
   background:
     radial-gradient(720px 200px at 80% 0%, rgba(150, 120, 70, 0.10), transparent 60%),
     linear-gradient(180deg, #ece0c0 0%, #e2d2a6 100%);
@@ -222,10 +336,26 @@ body.makwil-codex .header-nav {
   box-shadow: 0 6px 16px rgba(60, 38, 14, 0.18);
   color: #3a2410;
 }
-body.makwil-codex .logo-container h4 {
+body.makwil-codex.theme-light .logo-container h4 {
   color: #3a2410;
   text-shadow: 0 1px 0 rgba(255, 240, 210, 0.5);
 }
+
+/* TEMA OSCURO — header en obsidiana cálida + texto crema, acorde al fondo negro. */
+body.makwil-codex.theme-dark .header-nav {
+  background:
+    radial-gradient(720px 200px at 80% 0%, rgba(120, 86, 38, 0.14), transparent 60%),
+    linear-gradient(180deg, #16110b 0%, #0b0806 100%);
+  border-bottom: 1px solid #5a4226;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  color: #e9dcc0;
+}
+body.makwil-codex.theme-dark .logo-container h4 {
+  color: #e9dcc0;
+  text-shadow: 0 0 10px rgba(1, 109, 205, 0.4);
+}
+
+/* Logo (SVG) — azul destacado con halo: válido sobre ambos temas. */
 body.makwil-codex .logo-container svg {
   color: var(--cyan);
   filter: drop-shadow(0 0 6px rgba(1, 109, 205, 0.5));
@@ -242,14 +372,22 @@ body.makwil-codex .header-nav::after {
   filter: none;
 }
 
-/* Nav inferior en papel claro + greca sólida tenue arriba. */
-body.makwil-codex .bottom-nav {
+/* TEMA CLARO — nav inferior en papel claro. */
+body.makwil-codex.theme-light .bottom-nav {
   /* Mismo papel que el header. */
   background:
     radial-gradient(720px 200px at 80% 0%, rgba(150, 120, 70, 0.10), transparent 60%),
     linear-gradient(180deg, #ece0c0d3 0%, #e2d2a6d8 100%);
   border-top: 1px solid var(--greca-ink);
   box-shadow: 0 -6px 16px rgba(60, 38, 14, 0.18);
+}
+/* TEMA OSCURO — nav inferior en obsidiana cálida, acorde al fondo negro. */
+body.makwil-codex.theme-dark .bottom-nav {
+  background:
+    radial-gradient(720px 200px at 80% 0%, rgba(120, 86, 38, 0.14), transparent 60%),
+    linear-gradient(180deg, #16110bdb 0%, #0b0806e0 100%);
+  border-top: 1px solid #5a4226;
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.5);
 }
 body.makwil-codex .bottom-nav::before {
   height: 12px;
@@ -265,4 +403,176 @@ body.makwil-codex .bottom-nav::before {
 /* Separadores de canal del secuenciador: tono bronce acorde al códice. */
 .makwil-codex .seq-channel {
   border-top-color: rgba(199, 154, 75, 0.22);
+}
+/* Tema oscuro: separador en sepia oscuro para leerse sobre el pergamino. */
+.makwil-codex.theme-dark .seq-channel {
+  border-top-color: rgba(74, 52, 20, 0.35);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SELECTORES: mismo estilo que los inputs de texto (.control-input)
+   ─────────────────────────────────────────────────────────────────────────
+   El `.control-select` base trae fondo obsidiana hardcodeado + texto var(--ink);
+   en el tema oscuro la tinta queda invisible sobre ese fondo. Lo igualamos al input
+   de texto (token-driven) para que el texto salga ámbar luminoso en ambas variantes. */
+.makwil-codex .control-select {
+  color: var(--amber-soft);
+  background: var(--groove);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 0 8px var(--glow);
+}
+.makwil-codex .control-select:focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--accent);
+}
+/* Las opciones del desplegable (nativas) no heredan el fondo del control en todos los
+   navegadores: las fijamos a un socket cálido con texto crema para que se lean. */
+.makwil-codex .control-select option {
+  color: #e9dcc0;
+  background: #2c2012;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   LABELS DE PERILLAS = color del borde del título de módulo (--greca-ink)
+   ════════════════════════════════════════════════════════════════════════ */
+.makwil-codex .knob-name {
+  color: var(--greca-ink);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TEMA OSCURO — controles a SOCKET CÁLIDO OSCURO (emparentado con el pergamino)
+   ─────────────────────────────────────────────────────────────────────────
+   Varios fondos vienen hardcodeados en obsidiana FRÍA (azulada). En el tema oscuro
+   los repintamos en sepia oscuro cálido. Los estados activos siguen usando
+   var(--accent)/var(--glow) de cada familia (no se tocan). El master fader naranja-rojo
+   tampoco se toca. */
+
+/* Track de faders/sliders (ADSR, Mixer, pasos del Seq). */
+.makwil-codex.theme-dark .control-slider {
+  background: linear-gradient(180deg, #241a0c, #2f2212);
+}
+
+/* Celdas de paso del secuenciador: escalera de luminancia para que los marcadores de compás
+   (cada 4 / cada 8) destaquen sobre el fondo de sliders/gates (#241a0c). Bordes izquierdos
+   avivados (azul rey / ámbar). */
+.makwil-codex.theme-dark .seq-step {
+  background: radial-gradient(circle at 50% 0%, #2e2212, #1d1509);
+}
+.makwil-codex.theme-dark .seq-step.beat {
+  background: radial-gradient(circle at 50% 0%, #1c244ae5, #0e0c24e8);
+  border-left-color: #2766dd;
+}
+.makwil-codex.theme-dark .seq-step.bar {
+  background: radial-gradient(circle at 50% 0%, #5e4824, #2a1f0d);
+  border-left-color: #ff7707;
+}
+.makwil-codex.theme-dark .seq-step.playing:not(.beat):not(.bar) {
+  background: radial-gradient(circle at 50% 0%, #3a3416, #241a0c);
+}
+
+/* "Checkboxes" del secuenciador (gate) y de la matriz (pin), botones del seq y mute/solo. */
+.makwil-codex.theme-dark .seq-gate,
+.makwil-codex.theme-dark .patch-pin-dot {
+  background: #2c2012;
+}
+
+.makwil-codex.theme-dark .seq-gate.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--glow);
+}
+
+.makwil-codex.theme-dark .seq-btn,
+.makwil-codex.theme-dark .ms-btn {
+  background: #241a0c;
+}
+
+/* Celdas de la matriz de patcheo (socket): sepia oscuro acorde. */
+.makwil-codex.theme-dark .patch-cell {
+  background:
+    radial-gradient(circle at 50% 40%, #33260f, #1f1609),
+    repeating-linear-gradient(45deg, rgba(199, 154, 75, 0.10) 0 2px, transparent 2px 6px);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VCO: color de onda por voz (independiente del rojo de familia)
+   ─────────────────────────────────────────────────────────────────────────
+   Cada voz pinta su forma de onda (pantalla CRT) y su icono de selector MARCADO en un color
+   propio. Gana en especificidad sobre las reglas .primary-vco/.secondary-vco de VCO.css. */
+.makwil-codex .vco-i1 .waveform-svg {
+  stroke: #2f7ff0;
+  filter: drop-shadow(0 0 5px rgba(47, 127, 240, 0.85));
+}
+.makwil-codex .vco-i1 .checkbox-option input:checked + .wave-icon {
+  stroke: #2f7ff0;
+  filter: drop-shadow(0 0 3px rgba(47, 127, 240, 0.8));
+}
+.makwil-codex .vco-i2 .waveform-svg {
+  stroke: #ff3b3b;
+  filter: drop-shadow(0 0 5px rgba(255, 59, 59, 0.85));
+}
+.makwil-codex .vco-i2 .checkbox-option input:checked + .wave-icon {
+  stroke: #ff3b3b;
+  filter: drop-shadow(0 0 3px rgba(255, 59, 59, 0.8));
+}
+.makwil-codex .vco-i3 .waveform-svg {
+  stroke: #16c184;
+  filter: drop-shadow(0 0 5px rgba(22, 193, 132, 0.85));
+}
+.makwil-codex .vco-i3 .checkbox-option input:checked + .wave-icon {
+  stroke: #16c184;
+  filter: drop-shadow(0 0 3px rgba(22, 193, 132, 0.8));
+}
+.makwil-codex .vco-i4 .waveform-svg {
+  stroke: #ffcd2b;
+  filter: drop-shadow(0 0 5px rgba(255, 205, 43, 0.85));
+}
+.makwil-codex .vco-i4 .checkbox-option input:checked + .wave-icon {
+  stroke: #ffcd2b;
+  filter: drop-shadow(0 0 3px rgba(255, 205, 43, 0.8));
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Tema oscuro: lecturas de valor (perillas/faders) en tinta oscura sobre el pergamino.
+   Los inputs editables (.control-input/.control-select) viven sobre socket oscuro → siguen
+   en ámbar (no se tocan aquí). */
+.makwil-codex.theme-dark .knob-value,
+.makwil-codex.theme-dark .fader-value {
+  color: #3a2a10;
+  text-shadow: none;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MENÚ DEL BOTTOM-NAV: cada ítem legible y con el color de su familia de módulo.
+   El menú cuelga sobre un panel de pergamino claro; usamos chips con socket oscuro y texto
+   en el acento brillante de la familia. */
+body.makwil-codex .bottom-nav-menu button {
+  background: #241a0c;
+  color: #e9dcc0;
+  border-color: #5a4226;
+}
+body.makwil-codex .bottom-nav-menu .nav-fam-red {
+  color: #ff5a5a;
+  border-color: #d62828;
+}
+body.makwil-codex .bottom-nav-menu .nav-fam-amber {
+  color: #ffcd2b;
+  border-color: #b8860b;
+}
+body.makwil-codex .bottom-nav-menu .nav-fam-jade {
+  color: #2ad9a0;
+  border-color: #16c184;
+}
+body.makwil-codex .bottom-nav-menu .nav-fam-blue {
+  color: #5a93ff;
+  border-color: #2766dd;
+}
+body.makwil-codex .bottom-nav-menu .nav-fam-neutral {
+  color: #e9dcc0;
+  border-color: #5a4226;
+}
+body.makwil-codex .bottom-nav-menu button:hover {
+  box-shadow: 0 0 8px currentColor;
+  filter: brightness(1.15);
 }

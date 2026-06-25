@@ -63,12 +63,12 @@ export interface MakwilPresetState {
   vcf2Type: Vcf2Type;
   vcf2Freq: number;
   vcf2Res: number;
-  vcf2Source: Vcf2Source;
+  vcf2Source: Exclude<Vcf2Source, 'none'>[];
   // --- VCF 3 (insert por voz) ---
   vcf3Type: Vcf2Type;
   vcf3Freq: number;
   vcf3Res: number;
-  vcf3Source: Vcf2Source;
+  vcf3Source: Exclude<Vcf2Source, 'none'>[];
   // --- Envolventes AD (modulación) ---
   ad1Attack: number;
   ad1Decay: number;

@@ -87,13 +87,13 @@
   cursor: pointer;
 }
 .ms-btn.mute.on {
-  color: #04080b;
+  color: var(--led-red);
   background: var(--led-red);
   border-color: var(--led-red);
   box-shadow: 0 0 8px rgba(255, 77, 87, 0.7);
 }
 .ms-btn.solo.on {
-  color: #04100c;
+  color: var(--led-green);
   background: var(--led-green);
   border-color: var(--led-green);
   box-shadow: 0 0 8px rgba(61, 255, 149, 0.7);

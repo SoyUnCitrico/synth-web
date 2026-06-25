@@ -1,6 +1,8 @@
 import React from 'react';
 import { MIDI_CC_SOURCES } from '../../../audio/cv/patch';
 import { ROOT_NOTES, SCALES } from '../../../audio/scales';
+import Knob from '../../Knob/Knob';
+import { GLIDE_MIN, GLIDE_MAX, GLIDE_DEFAULT } from '../../../audio/makwil/sequencerTypes';
 import './Midi.css';
 
 interface MidiProps {
@@ -15,6 +17,12 @@ interface MidiProps {
   setQuantScale: (id: string) => void;
   quantRoot: number; // clase de altura 0..11
   setQuantRoot: (pc: number) => void;
+  // Glide (portamento) de la entrada MIDI: desliza el pitch entre notas (VCO2/3/4).
+  // Opcional — si no se pasan (p. ej. en Modulor) el control de glide no se muestra.
+  glideEnabled?: boolean;
+  setGlideEnabled?: (on: boolean) => void;
+  glideTime?: number; // segundos (GLIDE_MIN..GLIDE_MAX)
+  setGlideTime?: (s: number) => void;
   // --- Modo slots (Modulor): mapa slot→CC como fuentes de la matriz. ---
   /** Mapa slot→número de CC (null = sin asignar). */
   midiMap?: (number | null)[];
@@ -52,6 +60,10 @@ const Midi: React.FC<MidiProps> = ({
   setQuantScale,
   quantRoot,
   setQuantRoot,
+  glideEnabled,
+  setGlideEnabled,
+  glideTime,
+  setGlideTime,
   learnMode,
   onToggleLearnMode,
   assignments,
@@ -90,6 +102,37 @@ const Midi: React.FC<MidiProps> = ({
             </label>
           </div>
         </div>
+
+        {/* Glide (portamento) de la entrada MIDI: desliza el pitch entre notas en los VCO mono. */}
+        {setGlideEnabled && setGlideTime && (
+          <div className="midi-glide">
+            <span className="midi-glide-title">Glide</span>
+            <div className="midi-glide-ctl">
+              <div className="toggle-switch">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={glideEnabled ?? false}
+                    onChange={(e) => setGlideEnabled(e.target.checked)}
+                    aria-label="Activar/desactivar glide del MIDI"
+                  />
+                  <span className="slider"></span>
+                </label>
+                <span className="toggle-label">{(glideEnabled ?? false) ? 'ON' : 'OFF'}</span>
+              </div>
+              <Knob
+                label="Velocidad"
+                value={glideTime ?? GLIDE_DEFAULT}
+                min={GLIDE_MIN}
+                max={GLIDE_MAX}
+                step={0.005}
+                display={`${((glideTime ?? GLIDE_DEFAULT) * 1000).toFixed(0)} ms`}
+                onChange={setGlideTime}
+                disabled={!(glideEnabled ?? false)}
+              />
+            </div>
+          </div>
+        )}
 
         {!supported ? (
           <p className="midi-msg">

@@ -14,6 +14,11 @@ export const MAKWIL_KEYS = {
   midiAssignments: 'synth-web:makwil:midiAssignments:v1',
   quantScale: 'synth-web:makwil:quantScale:v1',
   quantRoot: 'synth-web:makwil:quantRoot:v1',
+  // --- Glide (portamento) del teclado y del MIDI (independientes entre sí) ---
+  kbdGlideEnabled: 'synth-web:makwil:kbdGlideEnabled:v1',
+  kbdGlideTime: 'synth-web:makwil:kbdGlideTime:v1',
+  midiGlideEnabled: 'synth-web:makwil:midiGlideEnabled:v1',
+  midiGlideTime: 'synth-web:makwil:midiGlideTime:v1',
   // --- VCO 1 (Fat / poli) ---
   osc1Type: 'synth-web:makwil:osc1Type:v1',
   osc1Freq: 'synth-web:makwil:osc1Freq:v1',
@@ -128,4 +133,6 @@ export const MAKWIL_KEYS = {
   cv4Steps: 'synth-web:makwil:cv4Steps:v1',
   // --- Presets ---
   presets: 'synth-web:makwil:presets:v1',
+  // --- Tema visual (oscuro por default) ---
+  theme: 'synth-web:makwil:theme:v1',
 } as const;

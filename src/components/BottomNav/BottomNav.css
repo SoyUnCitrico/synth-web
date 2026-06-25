@@ -12,6 +12,7 @@
   flex-wrap: wrap;
   row-gap: 0.4rem;
   width: 100%;
+  min-width: 530px;
   gap: 0.6rem;
   padding: 0.5rem 1rem;
   background: linear-gradient(180deg, #11161d 0%, #0a0e14 100%);
@@ -41,31 +42,45 @@
 }
 
 .bottom-nav-left {
-  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
 }
 
 .bottom-nav-right {
-  position: relative;
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  align-items: right;
+  gap: 1.5rem;
+}
+
+/* Perilla de cutoff compacta dentro de la barra (no debe engordar la altura). */
+.bottom-nav-cutoff .knob-wrap {
+  flex-direction: row;
+  align-items: right;
+  gap: 0.4rem;
+}
+.bottom-nav-cutoff .knob {
+  width: 34px;
+  height: 34px;
+  margin-right: -24px;
+}
+.bottom-nav-cutoff .knob-name {
+  font-size: 0.6rem;
+}
+.bottom-nav-cutoff .knob-value {
+  font-size: 0.66rem;
+  min-width: 4.5ch;
+  text-align: right;
 }
 
 /* ── Fila de mute/activación de canales ──
    El tamaño de los chips escala con el ancho de pantalla (clamp con vw): chico en móvil,
    acotado en escritorio. Marcado = canal sonando. */
 .bottom-nav-mutes {
-  position: relative;
   display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
+  max-width: 140px;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: clamp(0.4rem, 2vw, 1rem);
+  gap: clamp(0.6rem, 2vw, 1rem);
 }
 
 .mute-group {
@@ -195,7 +210,7 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 560px) {
+@media (max-width: 768px) {
   .bottom-nav {
     padding: 0.3rem 1rem;
     max-width: 100vw;
@@ -203,8 +218,7 @@
   /* Invertir bloques: menú a la izquierda, botones a la derecha. */
   .bottom-nav-right {
     order: 3;
-    margin-right: 1rem;
-    gap: 1rem;
+    gap: 0.5rem;
   }
   .bottom-nav-left {
     order: 1;
@@ -212,8 +226,7 @@
   /* La fila de mute pasa a su propia línea completa, centrada y prominente. */
   .bottom-nav-mutes {
     order: 2;
-    flex-basis: 220px;
-    gap: clamp(0.5rem, 4vw, 1rem);
+    margin-left: 8px;
   }
   /* Barra más compacta: botones e icono más chicos. */
   .bottom-nav .hdr-btn {

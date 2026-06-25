@@ -94,7 +94,7 @@ const VCO: React.FC<VCOProps> = ({
   };
 
   return (
-    <div className={`module vco-module ${isSecondary ? 'secondary-vco' : 'primary-vco'}`}>
+    <div className={`module vco-module vco-i${idSuffix} ${isSecondary ? 'secondary-vco' : 'primary-vco'}`}>
       <div className="module-header">
         <h2>{title}</h2>
         {setEnabled && (
@@ -163,89 +163,102 @@ const VCO: React.FC<VCOProps> = ({
             defaultValue={440}
             disabled={isDisabled}
           />
-          <div className="vco-tune-knobs">
+
+          <div className='vco-knobs'>
+            <div className="vco-tune-knobs-box">
             {/* Perilla con escala logarítmica: más recorrido en graves, menos en agudos. */}
-            <Knob
-              label="Freq"
-              value={frequency}
-              scale={OSC_FREQ_SCALE}
-              step={1}
-              display={`${frequency.toFixed(0)} Hz`}
-              onChange={setFrequency}
-              disabled={isDisabled}
-            />
-            {/* Afinado fino: ±200 cents en pasos suaves. No entra en la matriz. */}
-            <Knob
-              label="Fina"
-              value={fine}
-              min={-200}
-              max={200}
-              step={1}
-              display={`${fine > 0 ? '+' : ''}${fine} ct`}
-              onChange={setFine}
-              disabled={isDisabled}
-            />
+              <label>FREQ</label>
+              <div className="knob-row">
+                <Knob
+                  label="Freq"
+                  value={frequency}
+                  scale={OSC_FREQ_SCALE}
+                  step={1}
+                  display={`${frequency.toFixed(0)} Hz`}
+                  onChange={setFrequency}
+                  disabled={isDisabled}
+                />
+                {/* Afinado fino: ±200 cents en pasos suaves. No entra en la matriz. */}
+                <Knob
+                  label="Fina"
+                  value={fine}
+                  min={-200}
+                  max={200}
+                  step={1}
+                  display={`${fine > 0 ? '+' : ''}${fine} ct`}
+                  onChange={setFine}
+                  disabled={isDisabled}
+                />
+              </div>
+              
+            
+
+              </div>
+              {/* FAT (VCO 3): nº de voces (unísono) y separación entre ellas (spread, cents). */}
+              {fat && (
+                  <div className="vco-tune-knobs-box">
+                    <label>Unison</label>
+                    <div className='knob-row'>
+                      <Knob
+                        label="Voces"
+                        value={count}
+                        min={1}
+                        max={5}
+                        step={1}
+                        display={`${count}`}
+                        onChange={(v) => setCount?.(v)}
+                        disabled={isDisabled}
+                      />
+                      <Knob
+                        label="Spread"
+                        value={spread}
+                        min={0}
+                        max={100}
+                        step={1}
+                        display={`${spread.toFixed(0)} ct`}
+                        onChange={(v) => setSpread?.(v)}
+                        disabled={isDisabled}
+                      />
+                    </div>
+                  </div>
+              )}
+
+              {/* FM (VCO 4): armonicidad (razón de frecuencias) e índice de modulación (brillo). */}
+              {fm && (
+                  <div className="vco-tune-knobs-box">
+                    <label>FM</label>
+                    <div className='knob-row'>
+                      <Knob
+                        label="Harm"
+                        value={harmonicity}
+                        min={0}
+                        max={8}
+                        step={0.01}
+                        display={harmonicity.toFixed(2)}
+                        onChange={(v) => setHarmonicity?.(v)}
+                        disabled={isDisabled}
+                      />
+                      <Knob
+                        label="Índice"
+                        value={modIndex}
+                        min={0}
+                        max={30}
+                        step={0.1}
+                        display={modIndex.toFixed(1)}
+                        onChange={(v) => setModIndex?.(v)}
+                        disabled={isDisabled}
+                      />
+                    </div>
+                  </div>
+              )}
           </div>
+          
+
         </div>
 
-        {/* FAT (VCO 3): nº de voces (unísono) y separación entre ellas (spread, cents). */}
-        {fat && (
-          <div className="control-group">
-            <label>Unísono</label>
-            <div className="vco-tune-knobs">
-              <Knob
-                label="Voces"
-                value={count}
-                min={1}
-                max={5}
-                step={1}
-                display={`${count}`}
-                onChange={(v) => setCount?.(v)}
-                disabled={isDisabled}
-              />
-              <Knob
-                label="Spread"
-                value={spread}
-                min={0}
-                max={100}
-                step={1}
-                display={`${spread.toFixed(0)} ct`}
-                onChange={(v) => setSpread?.(v)}
-                disabled={isDisabled}
-              />
-            </div>
-          </div>
-        )}
+        
 
-        {/* FM (VCO 4): armonicidad (razón de frecuencias) e índice de modulación (brillo). */}
-        {fm && (
-          <div className="control-group">
-            <label>FM</label>
-            <div className="vco-tune-knobs">
-              <Knob
-                label="Harm"
-                value={harmonicity}
-                min={0}
-                max={8}
-                step={0.01}
-                display={harmonicity.toFixed(2)}
-                onChange={(v) => setHarmonicity?.(v)}
-                disabled={isDisabled}
-              />
-              <Knob
-                label="Índice"
-                value={modIndex}
-                min={0}
-                max={30}
-                step={0.1}
-                display={modIndex.toFixed(1)}
-                onChange={(v) => setModIndex?.(v)}
-                disabled={isDisabled}
-              />
-            </div>
-          </div>
-        )}
-
+       
         <div className="control-display">
           <div className="waveform-display">
             <svg viewBox="0 0 100 50" className={`waveform-svg ${isDisabled ? 'disabled' : ''}`}>
