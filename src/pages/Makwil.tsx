@@ -61,6 +61,7 @@ import Presets from '../components/Presets/Presets';
 import { MAKWIL_MODULE_SECTIONS, KEYBOARD_SECTION_ID } from '../components/BottomNav/makwilSections';
 import BottomNav from '../components/BottomNav/BottomNav';
 import { usePresets } from '../presets/usePresets';
+import { useCloudPresets } from '../presets/useCloudPresets';
 import { useMakwilTheme } from '../theme/MakwilThemeContext';
 import type { MakwilPresetState } from '../audio/makwil/presets';
 import '../App.css';
@@ -447,6 +448,8 @@ const Makwil: React.FC = () => {
 
   // --- Presets ---
   const { presets, save: savePreset, remove: removePreset, get: getPreset, importMany } = usePresets<MakwilPresetState>(MAKWIL_KEYS.presets);
+  // Sync con Google Sheets (clave + carga manual + auto-guardado del banco completo).
+  const cloud = useCloudPresets<MakwilPresetState>({ keyStorageKey: MAKWIL_KEYS.presetCloudKey, presets, importMany });
 
   const captureState = useCallback(
     (): MakwilPresetState => ({
@@ -617,7 +620,21 @@ const Makwil: React.FC = () => {
     [],
   );
 
-  const handleSavePreset = useCallback((name: string) => savePreset(name, captureState()), [savePreset, captureState]);
+  // Al guardar/borrar marcamos el cambio local para que la nube suba el banco (si hay clave).
+  const handleSavePreset = useCallback(
+    (name: string) => {
+      savePreset(name, captureState());
+      cloud.markLocalChange();
+    },
+    [savePreset, captureState, cloud],
+  );
+  const handleDeletePreset = useCallback(
+    (name: string) => {
+      removePreset(name);
+      cloud.markLocalChange();
+    },
+    [removePreset, cloud],
+  );
   const handleLoadPreset = useCallback(
     (name: string) => {
       const state = getPreset(name);
@@ -845,8 +862,15 @@ const Makwil: React.FC = () => {
           presets={presets}
           onSave={handleSavePreset}
           onLoad={handleLoadPreset}
-          onDelete={removePreset}
+          onDelete={handleDeletePreset}
           onImport={importMany}
+          cloud={cloud.enabled ? {
+            key: cloud.cloudKey,
+            onKeyChange: cloud.setCloudKey,
+            onLoad: cloud.loadFromCloud,
+            busy: cloud.busy,
+            status: cloud.status,
+          } : undefined}
         />
       </div>
       

@@ -60,6 +60,7 @@ import Presets from '../components/Presets/Presets';
 import { MODULE_SECTIONS, KEYBOARD_SECTION_ID } from '../components/BottomNav/sections';
 import BottomNav from '../components/BottomNav/BottomNav';
 import { usePresets } from '../presets/usePresets';
+import { useCloudPresets } from '../presets/useCloudPresets';
 import type { PresetState } from '../presets/types';
 import '../App.css';
 // import Oscilloscope from '../components/Oscilloscope/Oscilloscope';
@@ -516,6 +517,8 @@ const Modulor: React.FC = () => {
   // parámetros: añade el campo en PresetState y una línea en cada uno (mismo patrón).
   const { presets, save: savePreset, remove: removePreset, get: getPreset, importMany } =
     usePresets();
+  // Sync con Google Sheets (clave + carga manual + auto-guardado del banco completo).
+  const cloud = useCloudPresets<PresetState>({ keyStorageKey: PERSIST_KEYS.presetCloudKey, presets, importMany });
 
   const captureState = useCallback(
     (): PresetState => ({
@@ -670,9 +673,20 @@ const Modulor: React.FC = () => {
     [],
   );
 
+  // Al guardar/borrar marcamos el cambio local para que la nube suba el banco (si hay clave).
   const handleSavePreset = useCallback(
-    (name: string) => savePreset(name, captureState()),
-    [savePreset, captureState],
+    (name: string) => {
+      savePreset(name, captureState());
+      cloud.markLocalChange();
+    },
+    [savePreset, captureState, cloud],
+  );
+  const handleDeletePreset = useCallback(
+    (name: string) => {
+      removePreset(name);
+      cloud.markLocalChange();
+    },
+    [removePreset, cloud],
   );
   const handleLoadPreset = useCallback(
     (name: string) => {
@@ -964,8 +978,15 @@ const Modulor: React.FC = () => {
         presets={presets}
         onSave={handleSavePreset}
         onLoad={handleLoadPreset}
-        onDelete={removePreset}
+        onDelete={handleDeletePreset}
         onImport={importMany}
+        cloud={cloud.enabled ? {
+          key: cloud.cloudKey,
+          onKeyChange: cloud.setCloudKey,
+          onLoad: cloud.loadFromCloud,
+          busy: cloud.busy,
+          status: cloud.status,
+        } : undefined}
       />
 
       <div className="synth-modules" ref={oscRef}>

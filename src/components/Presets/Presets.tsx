@@ -3,15 +3,28 @@ import type { Preset } from '../../presets/types';
 import { serializePresets, parsePresets } from '../../presets/io';
 import './Presets.css';
 
+/** Controles opcionales de sincronización con la nube (Google Sheet). */
+interface CloudProps {
+  /** Clave secreta de escritura (input). */
+  key: string;
+  onKeyChange: (key: string) => void;
+  /** Descarga el banco de la hoja. */
+  onLoad: () => void;
+  busy?: boolean;
+  status?: string | null;
+}
+
 interface PresetsProps<S> {
   presets: Preset<S>[];
   onSave: (name: string) => void;
   onLoad: (name: string) => void;
   onDelete: (name: string) => void;
   onImport: (presets: Preset<S>[]) => void;
+  /** Si viene, se muestra la fila de sincronización con la nube. */
+  cloud?: CloudProps;
 }
 
-function Presets<S>({ presets, onSave, onLoad, onDelete, onImport }: PresetsProps<S>) {
+function Presets<S>({ presets, onSave, onLoad, onDelete, onImport, cloud }: PresetsProps<S>) {
   const [name, setName] = useState('');
   const [selected, setSelected] = useState('');
 
@@ -89,6 +102,23 @@ function Presets<S>({ presets, onSave, onLoad, onDelete, onImport }: PresetsProp
           <input type="file" accept="application/json,.json" onChange={handleImport} hidden />
         </label>
       </div>
+
+      {cloud && (
+        <div className="preset-group">
+          <input
+            type="password"
+            className="control-input preset-cloud-key"
+            placeholder="Clave nube…"
+            value={cloud.key}
+            onChange={(e) => cloud.onKeyChange(e.target.value)}
+            autoComplete="off"
+          />
+          <button className="preset-btn" onClick={cloud.onLoad} disabled={cloud.busy}>
+            Cargar nube
+          </button>
+          {cloud.status && <span className="preset-cloud-status">{cloud.status}</span>}
+        </div>
+      )}
     </div>
   );
 }

@@ -147,4 +147,6 @@ export const PERSIST_KEYS = {
   cv2Steps: 'synth-web:cv2Steps:v1',
   cv3Steps: 'synth-web:cv3Steps:v1',
   presets: 'synth-web:presets:v1',
+  // Clave secreta de escritura para la sync con Google Sheets (ver presets/remote.ts).
+  presetCloudKey: 'synth-web:presetCloudKey:v1',
 } as const;

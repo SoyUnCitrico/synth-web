@@ -133,6 +133,8 @@ export const MAKWIL_KEYS = {
   cv4Steps: 'synth-web:makwil:cv4Steps:v1',
   // --- Presets ---
   presets: 'synth-web:makwil:presets:v1',
+  // Clave secreta de escritura para la sync con Google Sheets (ver presets/remote.ts).
+  presetCloudKey: 'synth-web:makwil:presetCloudKey:v1',
   // --- Tema visual (oscuro por default) ---
   theme: 'synth-web:makwil:theme:v1',
 } as const;

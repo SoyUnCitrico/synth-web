@@ -51,6 +51,15 @@
   align-items: center;
 }
 
+/* Sincronización con la nube (Google Sheet). */
+.preset-cloud-key {
+  width: 8rem;
+}
+.preset-cloud-status {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
 @media (max-width: 768px) {
   .preset-bar {
     padding: 0.5rem;
