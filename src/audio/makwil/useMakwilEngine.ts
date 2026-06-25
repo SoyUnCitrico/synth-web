@@ -583,12 +583,26 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
 
   // --- Sincronización granular ---
 
-  // VCO 1 (poli): forma de onda fat + unísono (count/spread).
+  // VCO 1 (poli): forma de onda fat + spread. NI `type` NI `spread` reconstruyen los osciladores
+  // internos del FatOscillator (solo ajustan baseType/detune), así que se aplican de inmediato.
   useEffect(() => {
     polySynthRef.current?.set({
-      oscillator: { type: `fat${params.osc1Type}` as Tone.ToneOscillatorType, count: params.osc1Count, spread: params.osc1Spread } as unknown as Tone.SynthOptions['oscillator'],
+      oscillator: { type: `fat${params.osc1Type}` as Tone.ToneOscillatorType, spread: params.osc1Spread } as unknown as Tone.SynthOptions['oscillator'],
     });
-  }, [params.osc1Type, params.osc1Count, params.osc1Spread]);
+  }, [params.osc1Type, params.osc1Spread]);
+
+  // VCO 1 (poli): nº de voces de unísono (DEBOUNCEADO). El setter `count` del FatOscillator
+  // DESTRUYE y reconstruye todos sus osciladores; hacerlo en ráfaga (arrastre rápido de la perilla
+  // VOCES) solapa reconstrucciones y deja la voz silenciada de forma permanente. El debounce
+  // coalesce el arrastre en una sola reconstrucción al soltar (el setter ya es no-op si no cambia).
+  useEffect(() => {
+    const id = setTimeout(() => {
+      polySynthRef.current?.set({
+        oscillator: { count: params.osc1Count } as unknown as Tone.SynthOptions['oscillator'],
+      });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [params.osc1Count]);
 
   // VCO 1: afinado fino (cents) de todas las voces.
   useEffect(() => {
