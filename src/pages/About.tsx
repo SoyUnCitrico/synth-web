@@ -134,8 +134,8 @@ const About: React.FC = () => {
         <Link to="/" className="about-link">
           ← Entrar al sinte
         </Link>
-        <a href="https://emme.vercel.app" target="_blank" rel="noopener noreferrer" className="about-link">
-          EmmE d Makwil ↗
+        <a href="https://www.emm3.xyz" target="_blank" rel="noopener noreferrer" className="about-link">
+          EmmE de Makwil ↗
         </a>
       </footer>
     </div>

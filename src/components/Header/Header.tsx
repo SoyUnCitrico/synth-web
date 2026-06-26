@@ -71,14 +71,14 @@ const Header : React.FC<HeaderProps> = ({label = "MAKWIL", showThemeToggle = fal
                                 Modulor
                             </Link>
                             <a
-                                href="https://emme.vercel.app"
+                                href="https://www.emm3.xyz"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 role="menuitem"
                                 className="header-menu-item"
                                 onClick={() => setMenuOpen(false)}
                             >
-                                EmmE d Makwil <span className="ext-mark" aria-hidden="true">↗</span>
+                                EmmE de Makwil <span className="ext-mark" aria-hidden="true">↗</span>
                             </a>
                             <Link to="/about" role="menuitem" className="header-menu-item" onClick={() => setMenuOpen(false)}>
                                 About
