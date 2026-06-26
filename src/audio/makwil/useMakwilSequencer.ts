@@ -32,6 +32,12 @@ interface UseMakwilSequencerOptions {
   cv2Steps: CvStep[];
   cv3Steps: CvStep[];
   cv4Steps: CvStep[];
+  /**
+   * Rutea la NOTA (pitch) de un paso de un secuenciador de pitch, en CADA paso e
+   * independientemente del gate (como el CV). Actualiza los VCO mono / key-track y, en modo
+   * drone, el pitch de la VCO1. NO dispara envolventes.
+   */
+  fireNote: (source: GateSourceId, note: string, time: number, opts: { glide: boolean; glideTime: number }) => void;
   /** Ataque de una fuente de gate (nota opcional para fijar pitch; velocity 0..1; glide/ligado). */
   fireAttack: (source: GateSourceId, note: string | undefined, time: number, velocity: number, opts: StepAttackOpts) => void;
   /** Libera la compuerta de una fuente de gate. */
@@ -136,17 +142,26 @@ export function useMakwilSequencer(opts: UseMakwilSequencerOptions): UseMakwilSe
 
           if (seq === 0) {
             const ps = s as PitchStep;
-            if (ps.gate) fireGatedStep(stepNote(ps.offset, octave), ps.velocity, ps.gateLen);
+            const note = stepNote(ps.offset, octave);
+            // Pitch SIEMPRE (con o sin gate), igual que el CV; el gate sólo decide la envolvente.
+            dataRef.current.fireNote(source, note, time, { glide, glideTime });
+            if (ps.gate) fireGatedStep(note, ps.velocity, ps.gateLen);
             else releaseStep();
           } else {
             // CV continuo + gate. seq2/seq3 además emiten nota desde su offset.
             const cs = s as CvStep;
             cvSetters[seq]!(cs.value, time);
-            const note = PITCH_SEQS.has(seq)
-              ? stepNote(cs.offset ?? DEFAULT_PITCH_OFFSET, octave)
-              : undefined;
-            if (cs.gate) fireGatedStep(note, 1, cs.gateLen);
-            else releaseStep();
+            if (PITCH_SEQS.has(seq)) {
+              const note = stepNote(cs.offset ?? DEFAULT_PITCH_OFFSET, octave);
+              // Pitch SIEMPRE (con o sin gate); el gate sólo decide la envolvente.
+              dataRef.current.fireNote(source, note, time, { glide, glideTime });
+              if (cs.gate) fireGatedStep(note, 1, cs.gateLen);
+              else releaseStep();
+            } else {
+              // seq4/seq5: sólo CV + gate, sin nota.
+              if (cs.gate) fireGatedStep(undefined, 1, cs.gateLen);
+              else releaseStep();
+            }
           }
 
           Tone.getDraw().schedule(() => setStep(seq, index), time);

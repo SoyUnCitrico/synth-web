@@ -33,6 +33,10 @@ interface VCOProps {
   setHarmonicity?: (value: number) => void;
   modIndex?: number;
   setModIndex?: (value: number) => void;
+  // Modo DRONE (sólo VCO1): mantiene la voz sonando de forma continua. El toggle se muestra
+  // únicamente cuando se pasa `setDrone`.
+  drone?: boolean;
+  setDrone?: (value: boolean) => void;
 }
 
 // Trazos SVG de cada forma de onda (viewBox 0 0 100 50). Se reutilizan para el icono
@@ -78,6 +82,8 @@ const VCO: React.FC<VCOProps> = ({
   setHarmonicity,
   modIndex = 0,
   setModIndex,
+  drone = false,
+  setDrone,
 }) => {
   // Etiqueta e identificador (únicos) del módulo.
   const title = label ?? (isSecondary ? 'VCO 2' : 'VCO 1');
@@ -113,7 +119,7 @@ const VCO: React.FC<VCOProps> = ({
       </div>
       
       <div className={`module-controls ${isDisabled ? 'disabled' : ''}`}>
-        <div className="control-group">
+        <div className="control-group row wave">
           <label>Forma de onda</label>
           <div className={`checkbox-group ${isDisabled ? 'disabled' : ''}`}>
             {WAVEFORMS.map((wave) => (
@@ -130,6 +136,21 @@ const VCO: React.FC<VCOProps> = ({
               </label>
             ))}
           </div>
+           {/* DRONE (sólo VCO1): mantiene la voz sonando de forma continua para drones. */}
+        {setDrone && (
+            <div className="toggle-switch">
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={drone}
+                  disabled={isDisabled}
+                  onChange={(e) => setDrone(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+              <span className="toggle-label">Drone {drone ? 'ON' : 'OFF'}</span>
+            </div>
+        )}
         </div>
 
         {/* PWM: sólo activo con onda cuadrada (oscilador de pulso). width 0 = 50%. Los modos
@@ -252,13 +273,13 @@ const VCO: React.FC<VCOProps> = ({
                   </div>
               )}
           </div>
-          
+
 
         </div>
 
-        
-
        
+
+
         <div className="control-display">
           <div className="waveform-display">
             <svg viewBox="0 0 100 50" className={`waveform-svg ${isDisabled ? 'disabled' : ''}`}>

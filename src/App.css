@@ -299,6 +299,10 @@
   gap: 0.45rem;
 }
 
+.control-group.row.wave {
+  justify-content: space-between;
+}
+
 .control-group label {
   font-family: var(--font-mono);
   font-size: 0.82rem;

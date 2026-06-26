@@ -17,6 +17,8 @@ export interface MakwilPresetState {
   osc1Fine: number;
   osc1Spread: number;
   osc1Count: number;
+  /** Modo drone de la VCO1 (voz continua). */
+  droneEnabled: boolean;
   // --- VCO 2 (FM) ---
   osc2Type: Tone.ToneOscillatorType;
   osc2Freq: number;

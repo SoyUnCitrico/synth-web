@@ -25,6 +25,7 @@ export const MAKWIL_KEYS = {
   osc1Fine: 'synth-web:makwil:osc1Fine:v1',
   osc1Spread: 'synth-web:makwil:osc1Spread:v1',
   osc1Count: 'synth-web:makwil:osc1Count:v1',
+  droneEnabled: 'synth-web:makwil:droneEnabled:v1',
   // --- VCO 2 (FM) ---
   osc2Type: 'synth-web:makwil:osc2Type:v1',
   osc2Freq: 'synth-web:makwil:osc2Freq:v1',

@@ -112,6 +112,9 @@ const Makwil: React.FC = () => {
   const [osc1Fine, setOsc1Fine] = usePersistentState<number>(MAKWIL_KEYS.osc1Fine, 0);
   const [osc1Spread, setOsc1Spread] = usePersistentState<number>(MAKWIL_KEYS.osc1Spread, 20);
   const [osc1Count, setOsc1Count] = usePersistentState<number>(MAKWIL_KEYS.osc1Count, 1);
+  // Modo DRONE de la VCO1: mantiene la voz sonando de forma continua (sustain=1) en vez de
+  // depender del note-on/off del ADSR. Pensado para drones manejados por el secuenciador.
+  const [droneEnabled, setDroneEnabled] = usePersistentState<boolean>(MAKWIL_KEYS.droneEnabled, false);
 
   // --- VCO 2 (FM) ---
   const [osc2Type, setOsc2Type] = usePersistentState<Tone.ToneOscillatorType>(MAKWIL_KEYS.osc2Type, 'sine');
@@ -336,6 +339,12 @@ const Makwil: React.FC = () => {
   notePatchRef.current = notePatch;
   const quantRef = useRef({ scale: quantScale, root: quantRoot });
   quantRef.current = { scale: quantScale, root: quantRoot };
+  const droneRef = useRef(droneEnabled);
+  droneRef.current = droneEnabled;
+  // Aplica el modo drone al motor (sustain=1 mientras dura; al apagar, suelta todas las voces).
+  useEffect(() => {
+    engine.setDroneHold(droneEnabled);
+  }, [engine, droneEnabled]);
   // Tiempo de glide vivo por fuente (0 = desactivado). Leído dentro de noteOn/noteOff sin recrearlos.
   const glideRef = useRef({ keyboard: 0, midi: 0 });
   glideRef.current = {
@@ -395,10 +404,32 @@ const Makwil: React.FC = () => {
 
   // --- Despacho de notas del SECUENCIADOR (poli por fuente + mono). ---
   const lastSeqPolyRef = useRef<Partial<Record<string, string>>>({});
+
+  // Ruteo de pitch en CADA paso (con o sin gate), igual que el CV. Actualiza los VCO mono y, en
+  // modo drone, mantiene la voz de la VCO1 siguiendo la secuencia (sostenida y monofónica =
+  // unísono del fat oscilador). Fuera de drone, la VCO1 la dispara seqFireAttack en los gates.
+  const seqRouteNote = useCallback(
+    (source: GateSourceId, note: string, time: number, opts: { glide: boolean; glideTime: number }) => {
+      const gt = opts.glide ? opts.glideTime : 0;
+      routeNoteMono(source as NoteSourceId, note, time, gt);
+      if (droneRef.current && polyConnected(source as NoteSourceId)) {
+        const q = applyQuant(source as NoteSourceId, note);
+        // El PolySynth no expone setNote por voz: soltamos la nota previa y re-disparamos para
+        // seguir el pitch. Con sustain=1 (modo drone) la voz suena de forma continua.
+        const prev = lastSeqPolyRef.current[source];
+        if (prev) engine.polyRelease(prev, time);
+        engine.polyAttack(q, time, 1, gt);
+        lastSeqPolyRef.current[source] = q;
+      }
+    },
+    [engine, polyConnected, applyQuant, routeNoteMono],
+  );
+
   const seqFireAttack = useCallback(
     (source: GateSourceId, note: string | undefined, time: number, velocity: number, opts: { glide: boolean; glideTime: number; legato: boolean }) => {
       const gt = opts.glide ? opts.glideTime : 0;
-      if (note && polyConnected(source as NoteSourceId)) {
+      // VCO1 poli: sólo FUERA de modo drone (en drone la maneja seqRouteNote en cada paso).
+      if (!droneRef.current && note && polyConnected(source as NoteSourceId)) {
         const q = applyQuant(source as NoteSourceId, note);
         // Aun en pasos ligados re-disparamos la voz poli para actualizar su pitch (el PolySynth
         // no expone setNote por voz). El click de amplitud se evita omitiendo el re-ataque de la
@@ -409,21 +440,37 @@ const Makwil: React.FC = () => {
         engine.polyAttack(q, time, velocity, gt);
         lastSeqPolyRef.current[source] = q;
       }
-      fireGateAttack(source, note, time, velocity, gt, opts.legato);
+      // note=undefined: el pitch mono ya lo aplicó seqRouteNote; aquí sólo disparamos envolventes.
+      fireGateAttack(source, undefined, time, velocity, gt, opts.legato);
     },
     [engine, polyConnected, applyQuant, fireGateAttack],
   );
   const seqFireRelease = useCallback(
     (source: GateSourceId, time: number) => {
-      const last = lastSeqPolyRef.current[source];
-      if (last) {
-        engine.polyRelease(last, time);
-        lastSeqPolyRef.current[source] = undefined;
+      // En modo drone NO se suelta la voz de la VCO1: queda sonando (drone). Fuera de drone, sí.
+      if (!droneRef.current) {
+        const last = lastSeqPolyRef.current[source];
+        if (last) {
+          engine.polyRelease(last, time);
+          lastSeqPolyRef.current[source] = undefined;
+        }
       }
       fireGateRelease(source, time);
     },
     [engine, fireGateRelease],
   );
+
+  // Al detener el secuenciador, soltar cualquier drone colgado de sus fuentes (en modo drone
+  // seqFireRelease no las suelta, así que se cortan aquí para que Stop silencie).
+  useEffect(() => {
+    if (seqRunning) return;
+    const now = Tone.now();
+    for (const k of Object.keys(lastSeqPolyRef.current)) {
+      const n = lastSeqPolyRef.current[k];
+      if (n) engine.polyRelease(n, now);
+      lastSeqPolyRef.current[k] = undefined;
+    }
+  }, [engine, seqRunning]);
 
   const { currentSteps, reset: resetSequencer } = useMakwilSequencer({
     running: seqRunning,
@@ -434,6 +481,7 @@ const Makwil: React.FC = () => {
     cv2Steps,
     cv3Steps,
     cv4Steps,
+    fireNote: seqRouteNote,
     fireAttack: seqFireAttack,
     fireRelease: seqFireRelease,
     setSeqCv: engine.setSeqCv,
@@ -453,7 +501,7 @@ const Makwil: React.FC = () => {
 
   const captureState = useCallback(
     (): MakwilPresetState => ({
-      osc1Type, osc1Freq, osc1Fine, osc1Spread, osc1Count,
+      osc1Type, osc1Freq, osc1Fine, osc1Spread, osc1Count, droneEnabled,
       osc2Type, osc2Freq, osc2Fine, fmHarmonicity, fmModIndex,
       osc3Type, osc3Freq, osc3Fine, pwm3,
       osc4Type, osc4Freq, osc4Fine, pwm4,
@@ -480,7 +528,7 @@ const Makwil: React.FC = () => {
       seqConfigs, seqBpm, pitchSteps, cvSteps, cv2Steps, cv3Steps, cv4Steps,
     }),
     [
-      osc1Type, osc1Freq, osc1Fine, osc1Spread, osc1Count,
+      osc1Type, osc1Freq, osc1Fine, osc1Spread, osc1Count, droneEnabled,
       osc2Type, osc2Freq, osc2Fine, fmHarmonicity, fmModIndex,
       osc3Type, osc3Freq, osc3Fine, pwm3,
       osc4Type, osc4Freq, osc4Fine, pwm4,
@@ -515,6 +563,7 @@ const Makwil: React.FC = () => {
       if (s.osc1Fine !== undefined) setOsc1Fine(s.osc1Fine);
       if (s.osc1Spread !== undefined) setOsc1Spread(s.osc1Spread);
       if (s.osc1Count !== undefined) setOsc1Count(s.osc1Count);
+      if (s.droneEnabled !== undefined) setDroneEnabled(s.droneEnabled);
       if (s.osc2Type !== undefined) setOsc2Type(s.osc2Type);
       if (s.osc2Freq !== undefined) setOsc2Freq(s.osc2Freq);
       if (s.osc2Fine !== undefined) setOsc2Fine(s.osc2Fine);
@@ -647,7 +696,7 @@ const Makwil: React.FC = () => {
   const resetAll = useCallback(() => {
     applyState({
       channelEnabled: [true, false, false, false, false],
-      osc1Fine: 0, osc1Spread: 20, osc1Count: 1,
+      osc1Fine: 0, osc1Spread: 20, osc1Count: 1, droneEnabled: false,
       osc2Freq: 440, osc2Fine: 0, fmHarmonicity: 1, fmModIndex: 2,
       osc3Freq: 440, osc3Fine: 0, pwm3: 0,
       osc4Freq: 440, osc4Fine: 0, pwm4: 0,
@@ -894,6 +943,8 @@ const Makwil: React.FC = () => {
             setSpread={setOsc1Spread}
             count={osc1Count}
             setCount={setOsc1Count}
+            drone={droneEnabled}
+            setDrone={setDroneEnabled}
             oscRef={oscRef}
           />
 

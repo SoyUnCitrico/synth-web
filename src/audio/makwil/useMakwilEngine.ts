@@ -178,6 +178,12 @@ export interface MakwilEngine {
   polyRelease: (note: string, time?: number) => void;
   /** Suelta todas las voces poli (al parar el transporte / pánico). */
   polyReleaseAll: () => void;
+  /**
+   * Modo DRONE de la VCO1: fija el `sustain` de las voces poli a 1 (sostenido indefinido) para
+   * que una voz suene de forma continua aunque no se libere. Al desactivar, restaura el `sustain`
+   * real del ADSR y suelta todas las voces colgadas.
+   */
+  setDroneHold: (enabled: boolean) => void;
   /** Ataque de una envolvente mono (amp/ad1/ad2/dahd/fx) ruteada por la matriz de gates. */
   envAttack: (dest: GateDestId, time?: number, velocity?: number) => void;
   /** Release de una envolvente mono (destinos tipo gate, p. ej. el ADSR). */
@@ -220,6 +226,11 @@ export interface MakwilEngine {
  */
 export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   const polySynthRef = useRef<Tone.PolySynth<Tone.Synth> | null>(null);
+  // Modo drone activo: cuando es true, las voces poli usan sustain=1 (sostenido indefinido).
+  const droneHoldRef = useRef(false);
+  // Último sustain del ADSR (para restaurarlo al salir de drone sin recrear setDroneHold).
+  const sustainRef = useRef(params.sustain);
+  sustainRef.current = params.sustain;
   const osc2Ref = useRef<Tone.FMOscillator | null>(null);
   const osc3Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
   const osc4Ref = useRef<Tone.OmniOscillator<Tone.PulseOscillator> | null>(null);
@@ -858,7 +869,9 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
     }
     polySynthRef.current?.set({
       envelope: {
-        attack: params.attack, decay: params.decay, sustain: params.sustain, release: params.release,
+        attack: params.attack, decay: params.decay,
+        // En modo drone el sustain se fuerza a 1 (no pisar el sostenido del drone con el ADSR).
+        sustain: droneHoldRef.current ? 1 : params.sustain, release: params.release,
         attackCurve: params.adsrCurve, decayCurve: params.adsrCurve, releaseCurve: params.adsrCurve,
       },
     });
@@ -983,6 +996,12 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
   const polyReleaseAll = useCallback(() => {
     polySynthRef.current?.releaseAll();
   }, []);
+  const setDroneHold = useCallback((enabled: boolean) => {
+    droneHoldRef.current = enabled;
+    // Fuerza sustain=1 mientras dura el drone; al apagar, restaura el ADSR real y corta todo.
+    polySynthRef.current?.set({ envelope: { sustain: enabled ? 1 : sustainRef.current } });
+    if (!enabled) polySynthRef.current?.releaseAll();
+  }, []);
 
   const setOscNote = useCallback((target: 'osc2' | 'osc3' | 'osc4', note: string, time?: number, glideTime = 0) => {
     const osc = { osc2: osc2Ref, osc3: osc3Ref, osc4: osc4Ref }[target].current;
@@ -1090,6 +1109,7 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       polyAttack,
       polyRelease,
       polyReleaseAll,
+      setDroneHold,
       envAttack,
       envRelease,
       setOscNote,
@@ -1103,6 +1123,6 @@ export function useMakwilEngine(params: MakwilParams): MakwilEngine {
       startRecording,
       stopRecording,
     }),
-    [polyAttack, polyRelease, polyReleaseAll, envAttack, envRelease, setOscNote, setFilterKeyTrack, setSeqCv, setSeqCv2, setSeqCv3, setSeqCv4, startRecording, stopRecording],
+    [polyAttack, polyRelease, polyReleaseAll, setDroneHold, envAttack, envRelease, setOscNote, setFilterKeyTrack, setSeqCv, setSeqCv2, setSeqCv3, setSeqCv4, startRecording, stopRecording],
   );
 }
